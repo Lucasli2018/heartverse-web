@@ -303,7 +303,7 @@ function seedUsers(){
   DB.set("posts", posts);
 }
 const me = () => DB.get("session") ? DB.get("users", []).find(u => u.id === DB.get("session")) : null;
-const rawPeople = () => [...DB.get("bots", []), ...DB.get("users", [])];
+const rawPeople = () => [...DB.get("bots", []), ...DB.get("users", []), ...getRUsers()];
 const isBlocked = id => { const m = me(); return !!m && (DB.get("blocks", {})[m.id] || []).includes(id); };
 const allPeople = () => rawPeople().filter(u => !me() || u.id !== me().id).filter(p => !isBlocked(p.id));
 const getCouple = () => { const m = me(); return m ? (DB.get("couples", {})[m.id] || null) : null; };
@@ -312,6 +312,56 @@ const getLikes = () => DB.get("likes", {});          // {myId: [targetId,...]}
 const getMatches = () => DB.get("matches", []);      // [{id, a, b, ts, msgs:[], lastRead:{}}]
 const getPosts = () => DB.get("posts", []);          // [{id, uid, text, ts, likes:[], comments:[]}]
 const getVisits = () => DB.get("visits", {});        // {myId: [{uid, ts}]}
+
+/* ---------- 云端（v2.0 · D1 真后端，file:// 自动降级本地模式） ---------- */
+const Cloud = {
+  token: null, user: null,
+  init(){
+    this.token = localStorage.getItem("hv_token") || null;
+    this.user = DB.get("cloud_user", null);
+  },
+  on(){ return !!this.token && !!this.user; },
+  async req(path, opts = {}){
+    const headers = { "Content-Type": "application/json" };
+    if (this.token) headers["Authorization"] = "Bearer " + this.token;
+    const res = await fetch("api" + path, { ...opts, headers });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.ok === false) throw new Error(j.error || ("HTTP " + res.status));
+    return j;
+  },
+  async register(data){ const j = await this.req("/register", { method: "POST", body: JSON.stringify(data) }); this._accept(j); return j; },
+  async login(email, pw){ const j = await this.req("/login", { method: "POST", body: JSON.stringify({ email, pw }) }); this._accept(j); return j; },
+  _accept(j){
+    this.token = j.token; this.user = j.user;
+    localStorage.setItem("hv_token", j.token);
+    DB.set("cloud_user", j.user);
+    upsertRealUser(j.user, true);
+    const m = me(); if (!m || !m.cid || m.cid !== j.user.cid){ // 镜像账号不存在则创建
+      const users = DB.get("users", []);
+      const mine = users.find(u => u.cid === j.user.cid);
+      const rec = mine || { id: "c" + j.user.cid, cloud: true, ts: Date.now(), bg: PHOTO_BG[Math.floor(Math.random() * PHOTO_BG.length)] };
+      Object.assign(rec, { cid: j.user.cid, email: j.user.email, name: j.user.name, gender: j.user.gender, age: j.user.age, city: j.user.city, bio: j.user.bio, avatar: j.user.avatar, tags: j.user.tags });
+      if (!mine) users.push(rec);
+      DB.set("users", users);
+    }
+    DB.set("session", "c" + j.user.cid);
+  },
+  logout(){ this.token = null; this.user = null; localStorage.removeItem("hv_token"); DB.set("cloud_user", null); }
+};
+Cloud.init();
+const isNetErr = e => e instanceof TypeError || /Failed to fetch|NetworkError|load failed/i.test(String(e && e.message));
+const getRUsers = () => DB.get("rusers", []);
+function upsertRealUser(u, isMe){
+  if (!u || !u.cid) return null;
+  const list = getRUsers();
+  let rec = list.find(x => x.cid === u.cid);
+  if (!rec){ rec = { id: "c" + u.cid, cid: u.cid, cloud: true, bg: PHOTO_BG[list.length % PHOTO_BG.length], ts: Date.now() }; list.push(rec); }
+  Object.assign(rec, { name: u.name, gender: u.gender, age: u.age, city: u.city, bio: u.bio, avatar: u.avatar, tags: u.tags || [], online: true });
+  if (!isMe) DB.set("rusers", list);
+  return rec;
+}
+const cidToId = cid => "c" + cid;
+const idToCid = id => String(id).startsWith("c") ? id.slice(1) : null;
 function getFilter(){
   const m = me(); const fs = DB.get("filters", {});
   fs[m.id] = fs[m.id] || { gender: "all", age: "all", city: "all", online: false };
@@ -328,26 +378,108 @@ function completion(u){
 }
 
 /* ---------- 匹配逻辑 ---------- */
-function like(targetId, superLike){
+async function like(targetId, superLike){
   const m = me(); if (!m) return;
+  const t = allPeople().find(p => p.id === targetId);
+  /* 真实云端用户 → 走服务端 */
+  if (t && t.cid && Cloud.on()){
+    const likes = getLikes();
+    likes[m.id] = likes[m.id] || [];
+    if (!likes[m.id].includes(targetId)) likes[m.id].push(targetId);
+    DB.set("likes", likes);
+    try {
+      const j = await Cloud.req("/like", { method: "POST", body: JSON.stringify({ target: t.cid, sup: superLike ? 1 : 0 }) });
+      if (j.matched){
+        upsertRealUser(j.other);
+        addRealMatch(j.match);
+        setTimeout(() => toast(`💞 配对成功！${j.other.name} 也喜欢你`, "love"), 450);
+      }
+    } catch (e){ if (!isNetErr(e)) toast(e.message, "bad"); }
+    return;
+  }
   const likes = getLikes();
   likes[m.id] = likes[m.id] || [];
   if (!likes[m.id].includes(targetId)) likes[m.id].push(targetId);
   DB.set("likes", likes);
   // 机器人按概率回赞 → 配对成功
-  const t = allPeople().find(p => p.id === targetId);
-  if (t && t.bot){
+  const target = allPeople().find(p => p.id === targetId);
+  if (target && target.bot && !target.cid){
     const prob = superLike ? 0.95 : 0.55;
     if (Math.random() < prob){
       const back = getLikes();
-      back[t.id] = back[t.id] || [];
-      if (!back[t.id].includes(m.id)) back[t.id].push(m.id);
+      back[target.id] = back[target.id] || [];
+      if (!back[target.id].includes(m.id)) back[target.id].push(m.id);
       DB.set("likes", back);
-      createMatch(m.id, t.id);
-      botOpening(m.id, t.id);
-      setTimeout(() => toast(`💞 配对成功！${t.name} 也喜欢你`, "love"), 450);
+      createMatch(m.id, target.id);
+      botOpening(m.id, target.id);
+      setTimeout(() => toast(`💞 配对成功！${target.name} 也喜欢你`, "love"), 450);
     }
   }
+}
+function addRealMatch(s){
+  const m = me(); if (!m || !s) return null;
+  const ms = getMatches();
+  let local = ms.find(x => x.id === s.id);
+  const other = upsertRealUser(s.other);
+  if (!local){
+    local = { id: s.id, real: true, a: m.id, b: other.id, ts: s.ts || Date.now(), msgs: [], lastRead: {}, pinned: false };
+    ms.unshift(local);
+  }
+  applyRealMatch(local, s, m, other);
+  DB.set("matches", ms);
+  return local;
+}
+function applyRealMatch(local, s, m, other){
+  local.pinned = !!s.pinned;
+  local.lastRead = { [m.id]: s.my_read || 0 };
+  local.msgs = (s.msgs || []).map(g => ({
+    sid: g.id, from: g.sender === m.cid ? m.id : other.id,
+    text: g.text || "", img: g.img || "", recalled: !!g.recalled, ts: g.ts
+  }));
+}
+async function syncMatches(){
+  if (!Cloud.on() || !me()) return false;
+  const before = JSON.stringify(getMatches().filter(x => x.real));
+  try {
+    const j = await Cloud.req("/matches");
+    const m = me();
+    let ms = getMatches();
+    const ids = new Set(j.matches.map(s => s.id));
+    ms = ms.filter(x => !x.real || ids.has(x.id));
+    j.matches.forEach(s => {
+      let local = ms.find(x => x.id === s.id);
+      if (!local){
+        const other = upsertRealUser(s.other);
+        local = { id: s.id, real: true, a: m.id, b: other.id, ts: s.ts || Date.now(), msgs: [], lastRead: {} };
+        ms.unshift(local);
+      }
+      if (s.other) upsertRealUser(s.other);
+      applyRealMatch(local, s, m, allPeople().find(p => p.id === local.b) || local);
+    });
+    DB.set("matches", ms);
+  } catch (e){}
+  return JSON.stringify(getMatches().filter(x => x.real)) !== before;
+}
+let lastUsersSync = 0;
+async function syncUsers(){
+  if (!Cloud.on()) return false;
+  try {
+    const j = await Cloud.req("/users");
+    const sig = l => JSON.stringify(getRUsers().map(u => [u.cid, u.name, u.bio, u.avatar, u.tags]));
+    const before = sig();
+    j.users.forEach(u => upsertRealUser(u));
+    return sig() !== before;
+  } catch (e){ return false; }
+}
+let likedMeSynced = "";
+async function syncLikedMe(){
+  if (!Cloud.on()) return;
+  try {
+    const j = await Cloud.req("/likedme");
+    j.users.forEach(u => upsertRealUser(u));
+    const sig = j.users.map(u => u.cid).join(",");
+    if (sig !== likedMeSynced){ likedMeSynced = sig; DB.set("cloud_likedme", sig); render(); }
+  } catch (e){}
 }
 function botOpening(matchId, botId){
   setTimeout(() => {
@@ -407,7 +539,7 @@ function render(){
     </div>
     <div class="nav-user">
       <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" title="切换主题">${document.documentElement.dataset.theme==="dark"?"☀️":"🌙"}</button>
-      ${m ? `<div class="avatar" onclick="go('profile')">${m.avatar || "😊"}</div>`
+      ${m ? `${Cloud.on() ? '<span title="云端模式 · 数据已同步" style="font-size:12px">☁️</span>' : ""}<div class="avatar" onclick="go('profile')">${m.avatar || "😊"}</div>`
           : `<button class="btn btn-pri btn-sm" onclick="go('auth')">登录 / 注册</button>`}
     </div>
   </div></nav>
@@ -477,24 +609,44 @@ function toggleAuthMode(){
   $("#a-btn").textContent = authReg ? "注 册" : "登 录";
   $("#a-switch").textContent = authReg ? "已有账号？去登录 →" : "还没有账号？去注册 →";
 }
-function doAuth(){
+async function doAuth(){
   const email = $("#a-email").value.trim().toLowerCase(), pw = $("#a-pw").value;
   if (!/^\S+@\S+\.\S+$/.test(email)) return toast("请输入有效邮箱", "bad");
   if (pw.length < 6) return toast("密码至少 6 位", "bad");
+  const btn = $("#a-btn"); if (btn) btn.disabled = true;
   const users = DB.get("users", []);
   if (authReg){
     const name = $("#a-name").value.trim();
-    if (!name) return toast("请填写昵称", "bad");
-    if (users.some(u => u.email === email)) return toast("该邮箱已注册", "bad");
+    if (!name) { if (btn) btn.disabled = false; return toast("请填写昵称", "bad"); }
+    try {
+      const j = await Cloud.register({ email, pw, name, gender: "女", age: 25, city: "杭州", bio: "这个人很神秘，什么都没写～" });
+      toast("注册成功，云端已同步 💗", "ok"); go("profile");
+      return;
+    } catch (e){
+      if (!isNetErr(e)){ if (btn) btn.disabled = false; return toast(e.message, "bad"); }
+      /* 网络不通 → 降级本地模式 */
+    }
+    if (users.some(u => u.email === email)) { if (btn) btn.disabled = false; return toast("该邮箱已注册", "bad"); }
     const u = { id: uid(), email, pw: hashPw(pw), name, gender: "女", age: 25, city: "杭州",
       bio: "这个人很神秘，什么都没写～", avatar: AVATARS[Math.floor(Math.random()*AVATARS.length)],
       bg: PHOTO_BG[Math.floor(Math.random()*PHOTO_BG.length)], tags: [], ts: Date.now() };
     users.push(u); DB.set("users", users); DB.set("session", u.id);
-    toast("注册成功，欢迎加入 💗", "ok"); go("profile");
+    if (btn) btn.disabled = false;
+    toast("注册成功（本地模式）💗", "ok"); go("profile");
   } else {
+    try {
+      const j = await Cloud.login(email, pw);
+      toast(`欢迎回来，${j.user.name} 💗`); go("discover");
+      syncUsers(); return;
+    } catch (e){
+      if (!isNetErr(e)){ if (btn) btn.disabled = false; return toast(e.message, "bad"); }
+      /* 网络不通 → 降级本地模式 */
+    }
     const u = users.find(u => u.email === email && u.pw === hashPw(pw));
-    if (!u) return toast("邮箱或密码错误", "bad");
-    DB.set("session", u.id); toast(`欢迎回来，${u.name} 💗`, "ok"); go("discover");
+    if (!u){ if (btn) btn.disabled = false; return toast("邮箱或密码错误", "bad"); }
+    DB.set("session", u.id);
+    if (btn) btn.disabled = false;
+    toast(`欢迎回来，${u.name} 💗`, "ok"); go("discover");
   }
 }
 
@@ -556,6 +708,10 @@ function dailyPick(){
 }
 function vDiscover(){
   let q = discoverQueue();
+  if (Cloud.on() && Date.now() - lastUsersSync > 5000){
+    lastUsersSync = Date.now();
+    syncUsers().then(changed => { if (changed && route.page === "discover") render(); }).catch(() => {});
+  }
   const pin = DB.get("pin");
   if (pin){ const i = q.findIndex(p => p.id === pin); if (i > 0) q.unshift(q.splice(i, 1)[0]); }
   const f = getFilter()[me().id];
@@ -667,6 +823,7 @@ function resetSkips(){
 
 /* ===== 页面：匹配列表 ===== */
 function vMatches(){
+  if (Cloud.on()) syncMatches().then(ch => { if (ch && route.page === "matches") render(); }).catch(() => {});
   const ms = myMatches();
   return `
   <section class="section"><div class="wrap" style="max-width:640px">
@@ -692,6 +849,8 @@ function vChat(matchId){
   if (!x) return `<section class="section"><div class="wrap"><div class="empty">匹配不存在</div></div></section>`;
   x.lastRead[m.id] = Date.now();
   const ms = getMatches(); const raw = ms.find(r => r.id === matchId); if (raw) { raw.lastRead = x.lastRead; DB.set("matches", ms); }
+  if (x.real && Cloud.on()) Cloud.req("/read", { method: "POST", body: JSON.stringify({ match: x.id }) }).catch(() => {});
+  if (x.real && Cloud.on()) syncMatches().then(ch => { if (ch && route.page === "chat" && route.arg === matchId) render(); }).catch(() => {});
   return `
   <section class="section"><div class="wrap" style="max-width:640px">
     <a href="#" style="font-size:13.5px;color:var(--muted);display:inline-block;margin-bottom:14px" onclick="go('matches');return false">← 返回匹配</a>
@@ -714,7 +873,7 @@ function vChat(matchId){
           const canRecall = own && !g.recalled && Date.now() - g.ts < 5 * 60e3;
           const body = g.recalled ? '<i style="opacity:.75;font-style:normal">消息已撤回</i>'
             : (g.img ? `<img class="msg-img" src="${g.img}" alt="图片">` : "") + (g.text ? esc(g.text) : "");
-          return `<div class="bubble ${own ? "me" : "them"}" ${canRecall ? `title="双击撤回" ondblclick="recallMsg('${x.id}',${i})"` : ""}>${body}<span class="bt">${fmtTime(g.ts)}</span></div>`;
+          return `<div class="bubble ${own ? "me" : "them"}" style="${g.pending ? "opacity:.55" : ""}${g.failed ? ";outline:1.5px solid var(--bad)" : ""}" ${canRecall ? `title="双击撤回" ondblclick="recallMsg('${x.id}',${i})"` : ""}>${body}<span class="bt">${fmtTime(g.ts)}</span></div>`;
         }).join("")
           : `<div class="empty" style="padding:20px">配对成功 🎉<br>说点什么，开始你们的故事吧</div>`}
       </div>
@@ -731,6 +890,19 @@ function sendMsg(matchId){
   const m = me();
   const inp = $("#chat-in"); const text = inp.value.trim(); if (!text) return;
   const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
+  if (x.real && Cloud.on()){
+    const tmp = { from: m.id, text, ts: Date.now(), pending: true };
+    x.msgs.push(tmp); DB.set("matches", ms); render();
+    Cloud.req("/send", { method: "POST", body: JSON.stringify({ match: x.id, text }) })
+      .then(j => {
+        const ms2 = getMatches(); const x2 = ms2.find(r => r.id === matchId); if (!x2) return;
+        const i = x2.msgs.indexOf(tmp); if (i >= 0) x2.msgs.splice(i, 1);
+        x2.msgs.push({ sid: j.msg.id, from: m.id, text: j.msg.text, ts: j.msg.ts });
+        DB.set("matches", ms2); render();
+      })
+      .catch(e => { tmp.pending = false; tmp.failed = true; DB.set("matches", getMatches()); toast(e.message || "发送失败", "bad"); render(); });
+    return;
+  }
   x.msgs.push({ from: m.id, text, ts: Date.now() });
   DB.set("matches", ms);
   scheduleBotReply(matchId);
@@ -767,6 +939,19 @@ function onImgPicked(inp){
   const reader = new FileReader();
   reader.onload = () => compressImg(reader.result, dataUrl => {
     const mid = route.arg; const ms = getMatches(); const x = ms.find(r => r.id === mid); if (!x) return;
+    if (x.real && Cloud.on()){
+      const tmp = { from: me().id, img: dataUrl, ts: Date.now(), pending: true };
+      x.msgs.push(tmp); DB.set("matches", ms); render();
+      Cloud.req("/send", { method: "POST", body: JSON.stringify({ match: x.id, img: dataUrl }) })
+        .then(j => {
+          const ms2 = getMatches(); const x2 = ms2.find(r => r.id === mid); if (!x2) return;
+          const i = x2.msgs.indexOf(tmp); if (i >= 0) x2.msgs.splice(i, 1);
+          x2.msgs.push({ sid: j.msg.id, from: me().id, img: j.msg.img, ts: j.msg.ts });
+          DB.set("matches", ms2); render();
+        })
+        .catch(e => { tmp.pending = false; tmp.failed = true; DB.set("matches", getMatches()); toast(e.message || "图片发送失败", "bad"); render(); });
+      return;
+    }
     x.msgs.push({ from: me().id, img: dataUrl, ts: Date.now() });
     const imgs = x.msgs.filter(g => g.img);
     if (imgs.length > 20) imgs[0].img = "";
@@ -799,6 +984,13 @@ function recallMsg(matchId, i){
   const g = x.msgs[i];
   if (!g || g.from !== m.id || g.recalled) return;
   if (Date.now() - g.ts > 5 * 60e3) return toast("超过 5 分钟，无法撤回", "bad");
+  if (x.real && Cloud.on()){
+    if (!g.sid) return toast("消息尚未发送成功", "bad");
+    Cloud.req("/recall", { method: "POST", body: JSON.stringify({ msg: g.sid }) })
+      .then(() => { g.recalled = true; DB.set("matches", getMatches()); toast("已撤回", "ok"); render(); })
+      .catch(e => toast(e.message || "撤回失败", "bad"));
+    return;
+  }
   g.recalled = true;
   DB.set("matches", ms);
   toast("已撤回", "ok"); render();
@@ -807,6 +999,7 @@ function togglePin(matchId){
   const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
   x.pinned = !x.pinned;
   DB.set("matches", ms);
+  if (x.real && Cloud.on()) Cloud.req("/pin", { method: "POST", body: JSON.stringify({ match: x.id, pinned: x.pinned }) }).catch(() => {});
   toast(x.pinned ? "已置顶该聊天 📌" : "已取消置顶", "ok");
   render();
 }
@@ -840,10 +1033,16 @@ function blockUser(matchId){
   const otherId = x.a === m.id ? x.b : x.a;
   const other = allPeople().find(p => p.id === otherId); if (!other) return;
   if (!confirm(`举报并拉黑 ${other.name}？拉黑后 TA 将不再出现，该聊天也会隐藏。`)) return;
+  if (x.real && Cloud.on()){
+    Cloud.req("/block", { method: "POST", body: JSON.stringify({ target: other.cid }) })
+      .catch(() => toast("云端同步失败，仅本地拉黑", "bad"));
+    DB.set("rusers", getRUsers().filter(r => r.id !== other.id));
+  }
   const bl = DB.get("blocks", {});
   bl[m.id] = bl[m.id] || [];
   if (!bl[m.id].includes(otherId)) bl[m.id].push(otherId);
   DB.set("blocks", bl);
+  DB.set("matches", getMatches().filter(r => r.id !== matchId));
   toast("已举报并拉黑 ✅", "ok");
   go("matches");
 }
@@ -941,7 +1140,11 @@ function vLikedMe(tab){
   tab = tab === "visits" ? "visits" : "likes";
   const m = me();
   const likes = getLikes()[m.id] || [];
-  const list = likedMe();
+  const localList = likedMe();
+  const cloudIds = String(DB.get("cloud_likedme", "") || "").split(",").filter(Boolean).map(cidToId);
+  const cloudList = cloudIds.map(id => rawPeople().find(p => p.id === id)).filter(p => p && !localList.some(x => x.id === p.id));
+  const list = localList.concat(cloudList);
+  if (Cloud.on()) syncLikedMe();
   const visits = (getVisits()[m.id] || [])
     .map(v => ({ ...v, u: allPeople().find(p => p.id === v.uid) }))
     .filter(v => v.u).sort((a, b) => b.ts - a.ts);
@@ -1050,9 +1253,10 @@ function saveProfile(){
     bio: $("#p-bio").value.trim() || "这个人很神秘，什么都没写～", tags,
     avatar: pickedAvatar || m.avatar });
   DB.set("users", users);
+  if (m.cloud && Cloud.on()) Cloud.req("/profile", { method: "PATCH", body: JSON.stringify({ name, gender: $("#p-gender").value, age, city: $("#p-city").value, bio: $("#p-bio").value.trim(), avatar: pickedAvatar || m.avatar, tags }) }).catch(() => toast("云端资料同步失败，已存本地", "bad"));
   toast("资料已保存 ✅", "ok"); pickedAvatar = null; render();
 }
-function logout(){ DB.set("session", null); toast("已退出登录", ""); go("home"); }
+function logout(){ Cloud.logout(); DB.set("session", null); toast("已退出登录", ""); go("home"); }
 function wipeData(){
   if (!confirm("确定清空本地全部数据？账号、匹配、聊天记录都将删除且无法恢复。")) return;
   const keep = localStorage.getItem("hv_theme");
@@ -1089,6 +1293,18 @@ function afterRender(){
   bindDrag();
   bindKeys();
   const b = $("#msgs"); if (b) b.scrollTop = b.scrollHeight;
+  startPoll();
+}
+let pollTimer = null;
+function startPoll(){
+  clearInterval(pollTimer);
+  if (!Cloud.on() || !me()) return;
+  if (route.page === "chat" || route.page === "matches"){
+    pollTimer = setInterval(async () => {
+      const changed = await syncMatches();
+      if (changed && (route.page === "chat" || route.page === "matches")) render();
+    }, route.page === "chat" ? 3000 : 6000);
+  }
 }
 function bindKeys(){
   if (route.page !== "discover" || !$("#card")) return;
