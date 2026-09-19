@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>心动星球 · 认真谈恋爱</title>
+<meta name="description" content="心动星球 —— 认真谈恋爱的交友平台：真实资料、滑动匹配、双向喜欢、站内聊天。">
+<style>
+:root{
+  --bg:#fff5f7; --panel:#ffffff; --ink:#2b1a22; --muted:#8a7280; --line:#f3dde5;
+  --pri:#e0447c; --pri-d:#c23167; --pri-soft:#fde3ee;
+  --acc:#fb923c; --ok:#10b981; --bad:#ef4444; --gold:#f59e0b;
+  --r:16px; --shadow:0 8px 28px rgba(224,68,124,.10);
+  --grad:linear-gradient(135deg,#e0447c 0%,#f472b6 55%,#fb923c 100%);
+  --surface:#ffffff; --surface-2:#fdf0f4; --nav-bg:rgba(255,255,255,.92); --input-bg:#ffffff;
+}
+:root[data-theme="dark"]{
+  --bg:#17101a; --panel:#231726; --ink:#f5e9ef; --muted:#b39aab; --line:#3a2438;
+  --pri:#f472a8; --pri-d:#f9a8c8; --pri-soft:#3d2136;
+  --surface:#231726; --surface-2:#2c1b2e; --nav-bg:rgba(23,16,26,.92); --input-bg:#2c1b2e;
+  --shadow:0 8px 28px rgba(0,0,0,.45);
+  --grad:linear-gradient(135deg,#f0568e 0%,#f48ac0 55%,#fca55e 100%);
+  color-scheme:dark;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;color-scheme:light}
+body{font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font-family:inherit;font-size:15px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+
+/* ===== 顶部导航 ===== */
+.nav{position:sticky;top:0;z-index:50;background:var(--nav-bg);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav-in{display:flex;align-items:center;gap:20px;height:60px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:800;font-size:19px}
+.logo .mark{width:34px;height:34px;border-radius:11px;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px}
+.nav-links{display:flex;gap:4px;flex:1;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.nav-links a{padding:10px 14px;border-radius:12px;font-size:15px;color:var(--muted);font-weight:600;transition:.15s;min-height:44px;display:inline-flex;align-items:center;white-space:nowrap}
+.nav-links a:hover{background:var(--pri-soft);color:var(--pri)}
+.nav-links a.on{background:var(--pri-soft);color:var(--pri);font-weight:700}
+.nav-links .bdg{background:var(--bad);color:#fff;font-size:11px;border-radius:99px;padding:1px 7px;margin-left:5px;font-weight:700}
+.nav-user{display:flex;align-items:center;gap:10px}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--grad);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px var(--line);flex-shrink:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:11px;font-size:14px;font-weight:600;transition:.15s;border:1px solid transparent;min-height:44px}
+.btn-pri{background:var(--pri);color:#fff}.btn-pri:hover{background:var(--pri-d)}
+.btn-ghost{border-color:var(--line);color:var(--ink);background:var(--surface)}.btn-ghost:hover{border-color:var(--pri);color:var(--pri)}
+.btn-lg{padding:13px 28px;font-size:15.5px;border-radius:13px}
+.btn-sm{padding:7px 13px;font-size:13px;border-radius:9px;min-height:36px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ===== Hero(未登录) ===== */
+.hero{background:var(--grad);color:#fff;padding:64px 0 80px;position:relative;overflow:hidden}
+.hero::before{content:"💗";position:absolute;font-size:200px;opacity:.10;top:-40px;right:-20px;transform:rotate(15deg)}
+.hero::after{content:"💘";position:absolute;font-size:140px;opacity:.10;bottom:-30px;left:-10px;transform:rotate(-12deg)}
+.hero-in{position:relative;z-index:1;display:grid;grid-template-columns:1.15fr .85fr;gap:44px;align-items:center}
+.hero h1{font-size:40px;line-height:1.3;font-weight:800;margin-bottom:16px}
+.hero p.sub{font-size:16px;opacity:.93;line-height:1.8;margin-bottom:26px}
+.hero .tags{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.tag{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.25);padding:6px 14px;border-radius:99px;font-size:13px}
+.hero-card{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:20px;padding:24px;backdrop-filter:blur(6px)}
+.hero-card .row{display:flex;justify-content:space-between;align-items:center;padding:12px 4px;border-bottom:1px dashed rgba(255,255,255,.2);font-size:14px}
+.hero-card .row:last-child{border:none}
+
+.section{padding:40px 0}
+.sec-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+.sec-head h2{font-size:22px;font-weight:800}
+.sec-head p{color:var(--muted);font-size:14px;margin-top:4px}
+
+/* ===== 匹配卡片 ===== */
+.deck{display:flex;justify-content:center;padding:10px 0 30px}
+.swipe-card{position:relative;width:100%;max-width:400px;background:var(--panel);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);overflow:hidden;touch-action:pan-y;user-select:none;transition:transform .25s,opacity .25s}
+.swipe-card.dragging{transition:none}
+.swipe-card.fly-like{transform:translateX(140%) rotate(18deg);opacity:0}
+.swipe-card.fly-nope{transform:translateX(-140%) rotate(-18deg);opacity:0}
+.swipe-photo{height:340px;display:flex;align-items:center;justify-content:center;font-size:110px;position:relative}
+.swipe-photo .stamp{position:absolute;top:18px;font-size:26px;font-weight:800;padding:6px 18px;border:4px solid;border-radius:12px;opacity:0;transition:.1s;letter-spacing:2px}
+.swipe-photo .stamp.like{left:18px;color:#22c55e;border-color:#22c55e;transform:rotate(-14deg)}
+.swipe-photo .stamp.nope{right:18px;color:#ef4444;border-color:#ef4444;transform:rotate(14deg)}
+.swipe-info{padding:20px 22px}
+.swipe-info h3{font-size:21px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.swipe-info .loc{font-size:13.5px;color:var(--muted);margin:6px 0 10px}
+.swipe-info .bio{font-size:14px;line-height:1.7;color:var(--ink);margin-bottom:12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--pri-soft);color:var(--pri);font-size:12.5px;padding:4px 11px;border-radius:99px;font-weight:600}
+.deck-actions{display:flex;justify-content:center;gap:26px;margin-top:22px}
+.act-btn{width:62px;height:62px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:27px;background:var(--surface);border:1.5px solid var(--line);box-shadow:var(--shadow);transition:.15s}
+.act-btn:hover{transform:scale(1.1)}
+.act-btn.nope{color:var(--bad)}.act-btn.like{color:var(--pri)}.act-btn.super{color:var(--gold);width:52px;height:52px;font-size:22px;margin-top:5px}
+.deck-empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.deck-empty .big{font-size:56px;margin-bottom:14px}
+
+/* ===== 列表/网格 ===== */
+.grid{display:grid;gap:16px}
+.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:repeat(2,1fr)}.g4{grid-template-columns:repeat(4,1fr)}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:.18s}
+.pcard:hover{transform:translateY(-4px);border-color:var(--pri)}
+.pcard .ph{height:150px;display:flex;align-items:center;justify-content:center;font-size:56px;position:relative}
+.pcard .ph .new{position:absolute;top:10px;right:10px;background:var(--bad);color:#fff;font-size:11px;padding:2px 9px;border-radius:99px;font-weight:700}
+.pcard .pi{padding:13px 15px}
+.pcard .pi h4{font-size:15.5px}
+.pcard .pi p{font-size:12.5px;color:var(--muted);margin-top:4px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:22px;box-shadow:var(--shadow)}
+
+/* ===== 匹配列表 & 聊天 ===== */
+.match-list{display:flex;flex-direction:column;gap:12px}
+.match-item{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow);cursor:pointer;transition:.15s}
+.match-item:hover{border-color:var(--pri)}
+.match-item .ma{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
+.match-item .mi{flex:1;min-width:0}
+.match-item .mi h4{font-size:15.5px}
+.match-item .mi p{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.match-item .mt{font-size:12px;color:var(--muted);flex-shrink:0}
+.unread-dot{width:10px;height:10px;border-radius:50%;background:var(--bad);flex-shrink:0}
+
+.chat-box{display:flex;flex-direction:column;height:min(60vh,540px);background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.chat-head{display:flex;align-items:center;gap:12px;padding:13px 16px;border-bottom:1px solid var(--line);background:var(--surface-2)}
+.chat-head .ca{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px}
+.bubble{max-width:75%;padding:10px 14px;border-radius:16px;font-size:14.5px;line-height:1.6;word-break:break-word}
+.bubble.me{align-self:flex-end;background:var(--pri);color:#fff;border-bottom-right-radius:4px}
+.bubble.them{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.bubble .bt{display:block;font-size:11px;opacity:.65;margin-top:4px}
+.chat-input{display:flex;gap:10px;padding:12px;border-top:1px solid var(--line)}
+.chat-input input{flex:1;border:1.5px solid var(--line);border-radius:12px;padding:11px 14px;background:var(--input-bg);color:var(--ink);outline:none}
+.chat-input input:focus{border-color:var(--pri)}
+
+/* ===== 表单 ===== */
+.f-row{margin-bottom:15px}
+.f-row label{display:block;font-size:13.5px;font-weight:600;margin-bottom:7px;color:var(--muted)}
+.f-in,.f-ta,.sel{width:100%;border:1.5px solid var(--line);border-radius:11px;padding:11px 13px;background:var(--input-bg);outline:none;color:var(--ink);font-size:15px}
+.f-in:focus,.f-ta:focus,.sel:focus{border-color:var(--pri)}
+.f-ta{resize:vertical;min-height:80px;line-height:1.6}
+.f-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.emoji-pick{display:flex;gap:8px;flex-wrap:wrap}
+.emoji-pick button{width:48px;height:48px;font-size:24px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface)}
+.emoji-pick button.on{border-color:var(--pri);background:var(--pri-soft)}
+.tag-pick{display:flex;gap:8px;flex-wrap:wrap}
+.tag-pick button{padding:7px 14px;border-radius:99px;font-size:13px;border:1.5px solid var(--line);background:var(--surface);font-weight:600;color:var(--muted)}
+.tag-pick button.on{border-color:var(--pri);background:var(--pri-soft);color:var(--pri)}
+
+/* Toast */
+#toasts{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:99;display:flex;flex-direction:column;gap:10px;align-items:center;width:min(92vw,360px)}
+.toast{background:#2b1a22;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;box-shadow:0 8px 26px rgba(0,0,0,.25);animation:tin .25s;max-width:100%;text-align:center}
+.toast.ok{background:#0b9e6f}.toast.bad{background:#dc2626}.toast.love{background:var(--pri)}
+@keyframes tin{from{transform:translateY(-14px);opacity:0}to{transform:none;opacity:1}}
+
+.footer{border-top:1px solid var(--line);padding:24px 0;text-align:center;color:var(--muted);font-size:13px;margin-top:30px}
+.empty{text-align:center;padding:44px 0;color:var(--muted);font-size:14px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:18px;text-align:center;box-shadow:var(--shadow)}
+.stat b{font-size:24px;display:block}.stat span{font-size:12.5px;color:var(--muted)}
+
+@media(max-width:900px){
+  .hero-in{grid-template-columns:1fr}.g4,.g3{grid-template-columns:1fr 1fr}.stat-grid{grid-template-columns:1fr 1fr}
+  .hero h1{font-size:30px}.hero{padding:46px 0 56px}
+}
+@media(max-width:600px){
+  .g4,.g3,.g2,.f-grid{grid-template-columns:1fr}
+  .nav-in{gap:10px;height:56px}
+  .logo span.t{display:none}
+  .nav-links a{padding:10px 11px;font-size:14px}
+  .swipe-photo{height:300px}
+  .hero h1{font-size:26px}
+  .wrap{padding:0 14px}
+}
+</style>
+<meta name="theme-color" content="#e0447c">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<script>
+try{var _t=localStorage.getItem("hv_theme");if(_t==="dark"||(!_t&&window.matchMedia&&matchMedia("(prefers-color-scheme:dark)").matches))document.documentElement.dataset.theme="dark";}catch(e){}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+/* =========================================================
+   心动星球 · 恋爱交友（单文件零依赖版）
+   数据存储：localStorage（浏览器本地）
+   ========================================================= */
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Math.random().toString(36).slice(2, 10);
+function hashPw(str){ let h = 5381; const s = "hv·" + str; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return "h" + h.toString(36); }
+function toast(msg, type){ const t = document.createElement("div"); t.className = "toast " + (type || ""); t.textContent = msg; $("#toasts").appendChild(t); setTimeout(() => { t.style.opacity = "0"; t.style.transition = ".3s"; setTimeout(() => t.remove(), 320); }, 2600); }
+function fmtTime(ts){ const d = new Date(ts); return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; }
+
+/* ---------- 静态数据 ---------- */
+const AVATARS = ["🦊","🐱","🐰","🐻","🐼","🦌","🐯","🦁","🐸","🐧","🦉","🦄"];
+const PHOTO_BG = ["linear-gradient(135deg,#fda4af,#f472b6)","linear-gradient(135deg,#93c5fd,#a78bfa)","linear-gradient(135deg,#fdba74,#fb923c)","linear-gradient(135deg,#6ee7b7,#34d399)","linear-gradient(135deg,#fcd34d,#fbbf24)","linear-gradient(135deg,#c4b5fd,#8b5cf6)","linear-gradient(135deg,#7dd3fc,#38bdf8)","linear-gradient(135deg,#f9a8d4,#ec4899)"];
+const TAGS = ["旅行","美食","电影","音乐","健身","读书","摄影","游戏","猫奴","狗派","咖啡","徒步","二次元","做饭","看展","跑步"];
+const CITIES = ["北京","上海","广州","深圳","杭州","成都","南京","武汉","西安","重庆"];
+const REPLIES = [
+  "哈哈真的吗？展开讲讲～","你也喜欢这个啊，好巧！","周末一般喜欢做什么呀？",
+  "听起来不错诶 😄","我刚吃完饭，你呢？","有机会可以一起去！",
+  "你平时工作忙吗？","哈哈哈哈哈太真实了","最近在追一部剧，超好看",
+  "那你理想型的约会是什么样的？"
+];
+
+/* ---------- 虚拟用户种子 ---------- */
+const SEED_NAMES = [
+  ["小鹿","女",26,"杭州","喜欢把周末浪费在美术馆和咖啡馆，希望找到一起看展的人。"],
+  ["阿澈","男",28,"上海","互联网从业者，下班健身，周末徒步，想找能一起爬山的人。"],
+  ["桃桃","女",24,"成都","火锅十级学者，猫奴一枚，理想生活是一猫两人三餐四季。"],
+  ["南乔","女",27,"北京","广告文案，喜欢 livehouse 和老电影，话不多但很有趣。"],
+  ["一木","男",30,"深圳","程序员，会做饭，拿手菜是红烧肉，想找个一起吃饭的人。"],
+  ["西西","女",25,"广州","自由插画师，二次元浓度高，希望对方尊重彼此的爱好。"],
+  ["阿森","男",27,"杭州","摄影师，跑过三次马拉松，想拍遍世界也想拍你。"],
+  ["念念","女",29,"南京","中学老师，喜欢读书和烘焙，性格温柔，认真找结婚对象。"],
+  ["老白","男",32,"北京","产品经理，脱口秀爱好者，能逗你开心是我的超能力。"],
+  ["茉莉","女",26,"武汉","医生，工作有点忙，但会把所有空闲时间留给喜欢的人。"],
+  ["Kiki","女",23,"上海","刚毕业的设计师，喜欢探店和拍照，想和有趣的人浪费时间。"],
+  ["大鹏","男",29,"成都","开咖啡馆的，手艺不错，希望店里早日有老板娘。"],
+];
+
+/* ---------- 数据层 ---------- */
+const DB = {
+  get(k, d){ try{ const v = localStorage.getItem("hv_" + k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ localStorage.setItem("hv_" + k, JSON.stringify(v)); }
+};
+
+function seedUsers(){
+  if (DB.get("bots")) return;
+  const bots = SEED_NAMES.map((s, i) => ({
+    id: "bot" + i, bot: true, name: s[0], gender: s[1], age: s[2], city: s[3], bio: s[4],
+    avatar: AVATARS[i % AVATARS.length], bg: PHOTO_BG[i % PHOTO_BG.length],
+    tags: [...TAGS].sort(() => Math.random() - .5).slice(0, 3 + Math.floor(Math.random() * 3)),
+    online: Math.random() > .4
+  }));
+  DB.set("bots", bots);
+}
+const me = () => DB.get("session") ? DB.get("users", []).find(u => u.id === DB.get("session")) : null;
+const allPeople = () => [...DB.get("bots", []), ...DB.get("users", []).filter(u => !me() || u.id !== me().id)];
+const getLikes = () => DB.get("likes", {});          // {myId: [targetId,...]}
+const getMatches = () => DB.get("matches", []);      // [{id, a, b, ts, msgs:[], lastRead:{}}]
+
+/* ---------- 匹配逻辑 ---------- */
+function like(targetId, superLike){
+  const m = me(); if (!m) return;
+  const likes = getLikes();
+  likes[m.id] = likes[m.id] || [];
+  if (!likes[m.id].includes(targetId)) likes[m.id].push(targetId);
+  DB.set("likes", likes);
+  // 机器人按概率回赞 → 配对成功
+  const t = allPeople().find(p => p.id === targetId);
+  if (t && t.bot){
+    const prob = superLike ? 0.95 : 0.55;
+    if (Math.random() < prob){
+      const back = getLikes();
+      back[t.id] = back[t.id] || [];
+      if (!back[t.id].includes(m.id)) back[t.id].push(m.id);
+      DB.set("likes", back);
+      createMatch(m.id, t.id);
+      setTimeout(() => toast(`💞 配对成功！${t.name} 也喜欢你`, "love"), 450);
+    }
+  }
+}
+function createMatch(a, b){
+  const ms = getMatches();
+  if (ms.some(x => (x.a===a&&x.b===b)||(x.a===b&&x.b===a))) return;
+  ms.unshift({ id: uid(), a, b, ts: Date.now(), msgs: [], lastRead: {} });
+  DB.set("matches", ms);
+}
+function myMatches(){
+  const m = me(); if (!m) return [];
+  return getMatches().filter(x => x.a === m.id || x.b === m.id)
+    .map(x => ({ ...x, other: allPeople().find(p => p.id === (x.a === m.id ? x.b : x.a)) }))
+    .filter(x => x.other);
+}
+function likedMe(){
+  const m = me(); if (!m) return [];
+  const likes = getLikes();
+  return allPeople().filter(p => (likes[p.id] || []).includes(m.id));
+}
+
+/* ---------- 路由 ---------- */
+let route = { page: "home", arg: null };
+function go(page, arg){ route = { page, arg: arg || null }; render(); window.scrollTo(0, 0); }
+
+/* ---------- 渲染 ---------- */
+function photoStyle(p){ return `background:${p.bg || PHOTO_BG[0]}`; }
+
+function render(){
+  const m = me();
+  const app = $("#app");
+  const unread = m ? myMatches().reduce((n, x) => n + (x.msgs.some(g => g.from !== m.id && g.ts > (x.lastRead[m.id] || 0)) ? 1 : 0), 0) : 0;
+  app.innerHTML = `
+  <nav class="nav"><div class="wrap nav-in">
+    <a class="logo" href="#" onclick="go('home');return false"><span class="mark">💗</span><span class="t">心动星球</span></a>
+    <div class="nav-links">
+      ${m ? `
+        <a class="${route.page==='discover'?'on':''}" href="#" onclick="go('discover');return false">🔥 发现</a>
+        <a class="${route.page==='matches'?'on':''}" href="#" onclick="go('matches');return false">💞 匹配${unread?`<span class="bdg">${unread}</span>`:""}</a>
+        <a class="${route.page==='likedme'?'on':''}" href="#" onclick="go('likedme');return false">❤️ 喜欢我</a>
+        <a class="${route.page==='profile'?'on':''}" href="#" onclick="go('profile');return false">👤 我的</a>
+      ` : `
+        <a href="#" onclick="go('home');return false">首页</a>
+      `}
+    </div>
+    <div class="nav-user">
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" title="切换主题">${document.documentElement.dataset.theme==="dark"?"☀️":"🌙"}</button>
+      ${m ? `<div class="avatar" onclick="go('profile')">${m.avatar || "😊"}</div>`
+          : `<button class="btn btn-pri btn-sm" onclick="go('auth')">登录 / 注册</button>`}
+    </div>
+  </div></nav>
+  <div id="page"></div>
+  <footer class="footer"><div class="wrap">💗 心动星球 · 认真谈恋爱 · 本地演示数据，请勿填写真实隐私信息</div></footer>`;
+  const P = $("#page");
+  if (!m && route.page !== "auth") P.innerHTML = vHome();
+  else if (route.page === "auth" && !m) P.innerHTML = vAuth();
+  else if (route.page === "discover") P.innerHTML = vDiscover();
+  else if (route.page === "matches") P.innerHTML = vMatches();
+  else if (route.page === "chat") P.innerHTML = vChat(route.arg);
+  else if (route.page === "likedme") P.innerHTML = vLikedMe();
+  else if (route.page === "profile") P.innerHTML = vProfile();
+  else P.innerHTML = m ? vDiscover() : vHome();
+  if (m && (route.page === "home")) route.page = "discover";
+  afterRender();
+}
+
+/* ===== 页面：首页 ===== */
+function vHome(){
+  return `
+  <section class="hero"><div class="wrap hero-in">
+    <div>
+      <h1>认真谈恋爱，<br>从一次心动开始 💘</h1>
+      <p class="sub">真实资料 · 双向喜欢 · 拒绝尬聊。在这里，每一次右滑都可能遇见对的人。</p>
+      <div class="tags"><span class="tag">✅ 实名资料</span><span class="tag">💞 双向匹配</span><span class="tag">💬 站内聊天</span><span class="tag">🔒 隐私优先</span></div>
+      <button class="btn btn-pri btn-lg" onclick="go('auth')">免费开始 →</button>
+    </div>
+    <div class="hero-card">
+      <div class="row"><b>💞 今日新增配对</b><span>1,286 对</span></div>
+      <div class="row"><b>💬 今日产生对话</b><span>9,432 段</span></div>
+      <div class="row"><b>❤️ 累计成功牵手</b><span>52,108 对</span></div>
+      <div class="row"><b>⭐ 用户满意度</b><span>96.3%</span></div>
+    </div>
+  </div></section>
+  <section class="section"><div class="wrap">
+    <div class="sec-head"><div><h2>怎么玩？</h2><p>三步，遇见心动</p></div></div>
+    <div class="grid g3">
+      <div class="card"><h3>📸 完善资料</h3><p style="margin-top:8px;color:var(--muted);font-size:13.5px;line-height:1.7">真实的照片、自我介绍和兴趣标签，是遇见对的人的第一步。</p></div>
+      <div class="card"><h3>👆 滑动喜欢</h3><p style="margin-top:8px;color:var(--muted);font-size:13.5px;line-height:1.7">右滑喜欢，左滑略过。只有双向喜欢才会配对成功，拒绝骚扰。</p></div>
+      <div class="card"><h3>💬 开始聊天</h3><p style="margin-top:8px;color:var(--muted);font-size:13.5px;line-height:1.7">配对成功后即可畅聊，从一句"嗨"开始你们的故事。</p></div>
+    </div>
+  </div></section>`;
+}
+
+/* ===== 页面：登录/注册 ===== */
+function vAuth(){
+  return `
+  <section class="section"><div class="wrap" style="max-width:440px">
+    <div class="card">
+      <h2 style="margin-bottom:18px;text-align:center">💗 加入心动星球</h2>
+      <div class="f-row"><label>邮箱</label><input class="f-in" id="a-email" type="email" placeholder="you@example.com"></div>
+      <div class="f-row"><label>密码</label><input class="f-in" id="a-pw" type="password" placeholder="至少 6 位" onkeydown="if(event.key==='Enter')doAuth()"></div>
+      <div id="a-name-row" class="f-row" style="display:none"><label>昵称</label><input class="f-in" id="a-name" placeholder="给自己起个好听的名字"></div>
+      <button class="btn btn-pri btn-lg" style="width:100%" id="a-btn" onclick="doAuth(false)">登 录</button>
+      <p style="text-align:center;margin-top:14px;font-size:13.5px;color:var(--muted)">
+        <a href="#" style="color:var(--pri);font-weight:600" onclick="toggleAuthMode();return false" id="a-switch">还没有账号？去注册 →</a>
+      </p>
+    </div>
+  </div></section>`;
+}
+let authReg = false;
+function toggleAuthMode(){
+  authReg = !authReg;
+  $("#a-name-row").style.display = authReg ? "" : "none";
+  $("#a-btn").textContent = authReg ? "注 册" : "登 录";
+  $("#a-switch").textContent = authReg ? "已有账号？去登录 →" : "还没有账号？去注册 →";
+}
+function doAuth(){
+  const email = $("#a-email").value.trim().toLowerCase(), pw = $("#a-pw").value;
+  if (!/^\S+@\S+\.\S+$/.test(email)) return toast("请输入有效邮箱", "bad");
+  if (pw.length < 6) return toast("密码至少 6 位", "bad");
+  const users = DB.get("users", []);
+  if (authReg){
+    const name = $("#a-name").value.trim();
+    if (!name) return toast("请填写昵称", "bad");
+    if (users.some(u => u.email === email)) return toast("该邮箱已注册", "bad");
+    const u = { id: uid(), email, pw: hashPw(pw), name, gender: "女", age: 25, city: "杭州",
+      bio: "这个人很神秘，什么都没写～", avatar: AVATARS[Math.floor(Math.random()*AVATARS.length)],
+      bg: PHOTO_BG[Math.floor(Math.random()*PHOTO_BG.length)], tags: [], ts: Date.now() };
+    users.push(u); DB.set("users", users); DB.set("session", u.id);
+    toast("注册成功，欢迎加入 💗", "ok"); go("profile");
+  } else {
+    const u = users.find(u => u.email === email && u.pw === hashPw(pw));
+    if (!u) return toast("邮箱或密码错误", "bad");
+    DB.set("session", u.id); toast(`欢迎回来，${u.name} 💗`, "ok"); go("discover");
+  }
+}
+
+/* ===== 页面：发现(滑动匹配) ===== */
+const getSkips = () => DB.get("skips", {});          // {myId: [targetId,...]}
+function discoverQueue(){
+  const m = me(); const likes = getLikes()[m.id] || [];
+  const skips = getSkips()[m.id] || [];
+  const matchedIds = myMatches().map(x => x.other.id);
+  return allPeople().filter(p => !likes.includes(p.id) && !skips.includes(p.id) && !matchedIds.includes(p.id));
+}
+function vDiscover(){
+  const q = discoverQueue();
+  if (!q.length) return `<section class="section"><div class="wrap"><div class="deck-empty"><div class="big">🌈</div><h3>今天的缘分刷完啦</h3><p style="margin-top:8px">明天再来，或去「匹配」看看已有的心动</p><div style="display:flex;gap:10px;justify-content:center;margin-top:18px"><button class="btn btn-pri" onclick="go('matches')">去看匹配 →</button>${(getSkips()[me().id]||[]).length?`<button class="btn btn-ghost" onclick="resetSkips()">找回略过的人</button>`:""}</div></div></div></section>`;
+  const p = q[0];
+  return `
+  <section class="section"><div class="wrap">
+    <div class="sec-head"><div><h2>🔥 发现心动</h2><p>右滑或点 ❤️ 喜欢 · 左滑或点 ✖️ 略过</p></div><span style="font-size:13px;color:var(--muted)">还有 ${q.length} 位</span></div>
+    <div class="deck">
+      <div class="swipe-card" id="card">
+        <div class="swipe-photo" style="${photoStyle(p)}">
+          <span>${p.avatar}</span>
+          <div class="stamp like" id="stamp-like">喜欢</div>
+          <div class="stamp nope" id="stamp-nope">略过</div>
+        </div>
+        <div class="swipe-info">
+          <h3>${esc(p.name)} · ${p.age} ${p.online?'<span class="chip" style="background:#d1fae5;color:#047857">● 在线</span>':""}</h3>
+          <div class="loc">📍 ${esc(p.city)}</div>
+          <div class="bio">${esc(p.bio)}</div>
+          <div class="chips">${(p.tags||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join("")}</div>
+        </div>
+      </div>
+    </div>
+    <div class="deck-actions">
+      <button class="act-btn nope" onclick="swipe('nope')" title="略过">✖️</button>
+      <button class="act-btn super" onclick="swipe('super')" title="超级喜欢">⭐</button>
+      <button class="act-btn like" onclick="swipe('like')" title="喜欢">❤️</button>
+    </div>
+  </div></section>`;
+}
+let swiping = false;
+function swipe(kind){
+  if (swiping) return;
+  const card = $("#card"); if (!card) return;
+  const q = discoverQueue(); if (!q.length) return;
+  const p = q[0];
+  swiping = true;
+  card.style.transform = "";
+  $("#stamp-like").style.opacity = 0; $("#stamp-nope").style.opacity = 0;
+  card.classList.add(kind === "nope" ? "fly-nope" : "fly-like");
+  if (kind === "nope"){
+    const m = me(); const sk = getSkips();
+    sk[m.id] = sk[m.id] || [];
+    if (!sk[m.id].includes(p.id)) sk[m.id].push(p.id);
+    DB.set("skips", sk);
+  } else {
+    like(p.id, kind === "super");
+  }
+  setTimeout(() => { swiping = false; render(); }, 240);
+}
+function bindDrag(){
+  const card = $("#card"); if (!card) return;
+  let sx = 0, dx = 0, dragging = false;
+  const start = x => { dragging = true; sx = x; card.classList.add("dragging"); };
+  const move = x => {
+    if (!dragging) return;
+    dx = x - sx;
+    card.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    $("#stamp-like").style.opacity = Math.max(0, Math.min(1, dx / 70));
+    $("#stamp-nope").style.opacity = Math.max(0, Math.min(1, -dx / 70));
+  };
+  const end = () => {
+    if (!dragging) return; dragging = false;
+    card.classList.remove("dragging");
+    if (dx > 90) return swipe("like", dx);
+    if (dx < -90) return swipe("nope", dx);
+    card.style.transform = "";
+    $("#stamp-like").style.opacity = 0; $("#stamp-nope").style.opacity = 0;
+    dx = 0;
+  };
+  card.addEventListener("touchstart", e => start(e.touches[0].clientX), { passive: true });
+  card.addEventListener("touchmove", e => move(e.touches[0].clientX), { passive: true });
+  card.addEventListener("touchend", end);
+  card.addEventListener("mousedown", e => { start(e.clientX);
+    const mm = e => move(e.clientX), mu = () => { end(); document.removeEventListener("mousemove", mm); document.removeEventListener("mouseup", mu); };
+    document.addEventListener("mousemove", mm); document.addEventListener("mouseup", mu);
+  });
+}
+
+function resetSkips(){
+  const m = me(); const sk = getSkips();
+  delete sk[m.id]; DB.set("skips", sk);
+  toast("已重置浏览记录", "ok"); render();
+}
+
+/* ===== 页面：匹配列表 ===== */
+function vMatches(){
+  const ms = myMatches();
+  return `
+  <section class="section"><div class="wrap" style="max-width:640px">
+    <div class="sec-head"><div><h2>💞 我的匹配</h2><p>双向奔赴的缘分</p></div></div>
+    ${ms.length ? `<div class="match-list">` + ms.map(x => {
+      const m = me();
+      const unread = x.msgs.some(g => g.from !== m.id && g.ts > (x.lastRead[m.id] || 0));
+      const last = x.msgs[x.msgs.length - 1];
+      return `<div class="match-item" onclick="go('chat','${x.id}')">
+        <div class="ma" style="${photoStyle(x.other)}">${x.other.avatar}</div>
+        <div class="mi"><h4>${esc(x.other.name)} · ${x.other.age}</h4><p>${last ? esc(last.text) : "配对成功，快打个招呼吧 👋"}</p></div>
+        ${unread ? '<div class="unread-dot"></div>' : `<div class="mt">${last ? fmtTime(last.ts) : ""}</div>`}
+      </div>`; }).join("") + `</div>`
+    : `<div class="empty">还没有匹配，去「发现」页右滑心动的人吧 💘<br><br><button class="btn btn-pri" onclick="go('discover')">去发现 →</button></div>`}
+  </div></section>`;
+}
+
+/* ===== 页面：聊天 ===== */
+function vChat(matchId){
+  const m = me();
+  const x = myMatches().find(x => x.id === matchId);
+  if (!x) return `<section class="section"><div class="wrap"><div class="empty">匹配不存在</div></div></section>`;
+  x.lastRead[m.id] = Date.now();
+  const ms = getMatches(); const raw = ms.find(r => r.id === matchId); if (raw) { raw.lastRead = x.lastRead; DB.set("matches", ms); }
+  return `
+  <section class="section"><div class="wrap" style="max-width:640px">
+    <a href="#" style="font-size:13.5px;color:var(--muted);display:inline-block;margin-bottom:14px" onclick="go('matches');return false">← 返回匹配</a>
+    <div class="chat-box">
+      <div class="chat-head">
+        <div class="ca" style="${photoStyle(x.other)}">${x.other.avatar}</div>
+        <div><b>${esc(x.other.name)}</b><div style="font-size:12px;color:var(--muted)">${x.other.online ? "● 在线" : "离线"} · ${esc(x.other.city)}</div></div>
+      </div>
+      <div class="chat-msgs" id="msgs">
+        ${x.msgs.length ? x.msgs.map(g => `<div class="bubble ${g.from === m.id ? "me" : "them"}">${esc(g.text)}<span class="bt">${fmtTime(g.ts)}</span></div>`).join("")
+          : `<div class="empty" style="padding:20px">配对成功 🎉<br>说点什么，开始你们的故事吧</div>`}
+      </div>
+      <div class="chat-input">
+        <input id="chat-in" placeholder="发送消息…" onkeydown="if(event.key==='Enter')sendMsg('${x.id}')">
+        <button class="btn btn-pri" onclick="sendMsg('${x.id}')">发送</button>
+      </div>
+    </div>
+  </div></section>`;
+}
+function sendMsg(matchId){
+  const m = me();
+  const inp = $("#chat-in"); const text = inp.value.trim(); if (!text) return;
+  const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
+  x.msgs.push({ from: m.id, text, ts: Date.now() });
+  DB.set("matches", ms);
+  // 机器人模拟回复（带打字指示器）
+  const otherId = x.a === m.id ? x.b : x.a;
+  const other = allPeople().find(p => p.id === otherId);
+  if (other && other.bot){
+    const delay = 1200 + Math.random() * 1800;
+    setTimeout(() => {
+      const box = $("#msgs");
+      if (box && route.page === "chat" && route.arg === matchId && !$("#typing")){
+        box.insertAdjacentHTML("beforeend", `<div class="bubble them" id="typing" style="opacity:.6">${other.name} 正在输入…</div>`);
+        box.scrollTop = box.scrollHeight;
+      }
+    }, Math.min(500, delay / 3));
+    setTimeout(() => {
+      const ms2 = getMatches(); const x2 = ms2.find(r => r.id === matchId); if (!x2) return;
+      x2.msgs.push({ from: otherId, text: REPLIES[Math.floor(Math.random() * REPLIES.length)], ts: Date.now() });
+      DB.set("matches", ms2);
+      if (route.page === "chat" && route.arg === matchId) render();
+      else toast(`💬 ${other.name} 回复了你`, "love");
+    }, delay);
+  }
+  render();
+  setTimeout(() => { const b = $("#msgs"); if (b) b.scrollTop = b.scrollHeight; }, 30);
+}
+
+/* ===== 页面：喜欢我的人 ===== */
+function vLikedMe(){
+  const m = me();
+  const likes = getLikes()[m.id] || [];
+  const list = likedMe();
+  return `
+  <section class="section"><div class="wrap">
+    <div class="sec-head"><div><h2>❤️ 喜欢我的人</h2><p>${list.length} 位用户对你心动</p></div></div>
+    ${list.length ? `<div class="grid g4">` + list.map(p => `
+      <div class="pcard" onclick="likeBack('${p.id}')">
+        <div class="ph" style="${photoStyle(p)}">${p.avatar}${likes.includes(p.id) ? "" : '<span class="new">心动</span>'}</div>
+        <div class="pi"><h4>${esc(p.name)} · ${p.age}</h4><p>📍 ${esc(p.city)} · ${esc((p.tags||[]).slice(0,2).join(" / "))}</p></div>
+      </div>`).join("") + `</div>`
+    : `<div class="empty">还没有人喜欢你，去完善资料或在「发现」页多互动吧 💪</div>`}
+  </div></section>`;
+}
+function likeBack(pid){
+  like(pid, true);
+  toast("已回赞 ❤️", "ok");
+  render();
+}
+
+/* ===== 页面：我的资料 ===== */
+function vProfile(){
+  const m = me();
+  const stats = { likes: (getLikes()[m.id] || []).length, matches: myMatches().length, likedMe: likedMe().length, msgs: myMatches().reduce((n, x) => n + x.msgs.length, 0) };
+  return `
+  <section class="section"><div class="wrap" style="max-width:720px">
+    <div class="sec-head"><div><h2>👤 我的资料</h2><p>完善资料可以显著提高匹配率</p></div>
+      <button class="btn btn-ghost btn-sm" onclick="wipeData()">清空本地数据</button>
+      <button class="btn btn-ghost btn-sm" onclick="logout()">退出登录</button></div>
+    <div class="stat-grid" style="margin-bottom:22px">
+      <div class="stat"><b>${stats.matches}</b><span>💞 匹配</span></div>
+      <div class="stat"><b>${stats.likes}</b><span>❤️ 我喜欢</span></div>
+      <div class="stat"><b>${stats.likedMe}</b><span>😍 喜欢我</span></div>
+      <div class="stat"><b>${stats.msgs}</b><span>💬 消息</span></div>
+    </div>
+    <div class="card">
+      <div class="f-row"><label>我的形象</label>
+        <div class="emoji-pick" id="p-avatar">${AVATARS.map(a => `<button class="${m.avatar===a?"on":""}" onclick="pickAvatar('${a}')">${a}</button>`).join("")}</div>
+      </div>
+      <div class="f-grid">
+        <div class="f-row"><label>昵称</label><input class="f-in" id="p-name" value="${esc(m.name)}"></div>
+        <div class="f-row"><label>性别</label><select class="sel" id="p-gender">${["女","男","保密"].map(g=>`<option ${m.gender===g?"selected":""}>${g}</option>`).join("")}</select></div>
+      </div>
+      <div class="f-grid">
+        <div class="f-row"><label>年龄</label><input class="f-in" id="p-age" type="number" min="18" max="99" value="${m.age}"></div>
+        <div class="f-row"><label>城市</label><select class="sel" id="p-city">${CITIES.map(c=>`<option ${m.city===c?"selected":""}>${c}</option>`).join("")}</select></div>
+      </div>
+      <div class="f-row"><label>自我介绍</label><textarea class="f-ta" id="p-bio" placeholder="介绍一下自己，真诚最重要…">${esc(m.bio)}</textarea></div>
+      <div class="f-row"><label>兴趣标签（选 3-5 个）</label>
+        <div class="tag-pick" id="p-tags">${TAGS.map(t => `<button class="${(m.tags||[]).includes(t)?"on":""}" onclick="this.classList.toggle('on')">${t}</button>`).join("")}</div>
+      </div>
+      <button class="btn btn-pri btn-lg" style="width:100%" onclick="saveProfile()">保存资料</button>
+    </div>
+  </div></section>`;
+}
+let pickedAvatar = null;
+function pickAvatar(a){
+  pickedAvatar = a;
+  document.querySelectorAll("#p-avatar button").forEach(b => b.classList.toggle("on", b.textContent === a));
+}
+function saveProfile(){
+  const m = me();
+  const name = $("#p-name").value.trim();
+  const age = parseInt($("#p-age").value, 10);
+  if (!name) return toast("昵称不能为空", "bad");
+  if (!age || age < 18) return toast("年龄需满 18 岁", "bad");
+  const tags = [...document.querySelectorAll("#p-tags button.on")].map(b => b.textContent);
+  const users = DB.get("users", []);
+  const u = users.find(u => u.id === m.id);
+  Object.assign(u, { name, age, gender: $("#p-gender").value, city: $("#p-city").value,
+    bio: $("#p-bio").value.trim() || "这个人很神秘，什么都没写～", tags,
+    avatar: pickedAvatar || m.avatar });
+  DB.set("users", users);
+  toast("资料已保存 ✅", "ok"); pickedAvatar = null; render();
+}
+function logout(){ DB.set("session", null); toast("已退出登录", ""); go("home"); }
+function wipeData(){
+  if (!confirm("确定清空本地全部数据？账号、匹配、聊天记录都将删除且无法恢复。")) return;
+  const keep = localStorage.getItem("hv_theme");
+  Object.keys(localStorage).filter(k => k.startsWith("hv_")).forEach(k => localStorage.removeItem(k));
+  if (keep) localStorage.setItem("hv_theme", keep);
+  route.page = "home";
+  seedUsers(); render();
+  toast("本地数据已清空", "ok");
+}
+
+/* ---------- 主题 ---------- */
+function toggleTheme(){
+  const dark = document.documentElement.dataset.theme !== "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "";
+  localStorage.setItem("hv_theme", dark ? "dark" : "light");
+  render();
+}
+
+/* ---------- 启动 ---------- */
+function afterRender(){
+  bindDrag();
+  bindKeys();
+  const b = $("#msgs"); if (b) b.scrollTop = b.scrollHeight;
+}
+function bindKeys(){
+  if (route.page !== "discover" || !$("#card")) return;
+  document.addEventListener("keydown", swipeKeys);
+}
+function swipeKeys(e){
+  if (route.page !== "discover") return;
+  if (e.key === "ArrowRight") swipe("like");
+  else if (e.key === "ArrowLeft") swipe("nope");
+  else if (e.key === "ArrowUp") swipe("super");
+  else return;
+  e.preventDefault();
+}
+/* Service Worker 注册（file:// 下跳过） */
+if (location.protocol === "http:" || location.protocol === "https:"){
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+seedUsers();
+if (me()) route.page = "discover";
+render();
+</script>
+</body>
+</html>
