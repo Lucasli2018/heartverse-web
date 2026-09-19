@@ -139,6 +139,40 @@ input,select,textarea{font-family:inherit;font-size:15px}
 .tag-pick button{padding:7px 14px;border-radius:99px;font-size:13px;border:1.5px solid var(--line);background:var(--surface);font-weight:600;color:var(--muted)}
 .tag-pick button.on{border-color:var(--pri);background:var(--pri-soft);color:var(--pri)}
 
+/* ===== 筛选栏 / Tab ===== */
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.filter-bar .fb{padding:7px 13px;border-radius:99px;font-size:13px;border:1.5px solid var(--line);background:var(--surface);font-weight:600;color:var(--muted);transition:.15s}
+.filter-bar .fb:hover{border-color:var(--pri)}
+.filter-bar .fb.on{border-color:var(--pri);background:var(--pri-soft);color:var(--pri)}
+.filter-bar select{border:1.5px solid var(--line);border-radius:99px;padding:7px 10px;background:var(--surface);color:var(--ink);font-size:13px;outline:none}
+.filter-bar select.on{border-color:var(--pri)}
+/* ===== 快捷短语 ===== */
+.quick-row{display:flex;gap:8px;flex-wrap:wrap;padding:0 12px 10px}
+.quick-row button{padding:6px 12px;border-radius:99px;font-size:12.5px;border:1px dashed var(--line);background:var(--surface-2);color:var(--muted)}
+.quick-row button:hover{color:var(--pri);border-color:var(--pri)}
+/* ===== 动态广场 ===== */
+.composer{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:18px;box-shadow:var(--shadow)}
+.composer textarea{width:100%;border:none;background:transparent;outline:none;resize:none;color:var(--ink);font-size:14.5px;line-height:1.6;min-height:56px;font-family:inherit}
+.composer .c-foot{display:flex;justify-content:flex-end;margin-top:6px}
+.post{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.post .p-head{display:flex;align-items:center;gap:11px;margin-bottom:9px}
+.post .p-head .pa{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0}
+.post .p-text{font-size:14.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.post .p-acts{display:flex;gap:18px;margin-top:11px}
+.post .p-acts button{font-size:13px;color:var(--muted);display:inline-flex;gap:5px;align-items:center}
+.post .p-acts button:hover{color:var(--pri)}
+.post .p-acts button.on{color:var(--pri);font-weight:700}
+.post .p-cmts{margin-top:10px;background:var(--surface-2);border-radius:11px;padding:10px 13px;display:flex;flex-direction:column;gap:7px}
+.post .p-cmts .cm{font-size:13px;line-height:1.55}
+.post .p-cmts .cm b{color:var(--pri)}
+.post .c-in{display:flex;gap:8px;margin-top:9px}
+.post .c-in input{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--input-bg);color:var(--ink);outline:none;font-size:13.5px}
+.post .c-in input:focus{border-color:var(--pri)}
+/* ===== 资料完善度 ===== */
+.done-wrap{margin-bottom:20px}
+.done-bar{height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
+.done-bar i{display:block;height:100%;background:var(--grad);border-radius:99px;transition:width .4s}
+
 /* Toast */
 #toasts{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:99;display:flex;flex-direction:column;gap:10px;align-items:center;width:min(92vw,360px)}
 .toast{background:#2b1a22;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;box-shadow:0 8px 26px rgba(0,0,0,.25);animation:tin .25s;max-width:100%;text-align:center}
@@ -203,6 +237,20 @@ const REPLIES = [
   "你平时工作忙吗？","哈哈哈哈哈太真实了","最近在追一部剧，超好看",
   "那你理想型的约会是什么样的？"
 ];
+const OPENINGS = ["嗨～刷到你啦 👋","你的介绍好有意思，认识一下？","同款爱好！打个招呼~","你好呀，很高兴刷到你 😄"];
+const QUICKS = ["你好呀 👋","平时喜欢做什么呀？","周末有空吗？","你的介绍好有意思"];
+const BOT_COMMENTS = ["说得好！","哈哈哈笑死我了","太真实了","支持一下 💗","有画面感了","羡慕这样的生活"];
+const BOT_POSTS = [
+  "今天的工作终于结束，去江边跑了五公里，晚风太舒服了 🌃",
+  "新画的插画交稿了！庆祝一下，晚上吃火锅 🍲",
+  "有人一起看展吗？周末去美术馆新展 🖼️",
+  "第一次做提拉米苏，居然成功了，骄傲脸 😎",
+  "深夜电台：最近单曲循环的一首歌，分享给大家 🎧",
+  "店里新到的豆子，今天手冲特别顺，欢迎来喝 ☕",
+  "马拉松训练第 42 天，配速终于进 5 分了 💪",
+  "看完一本很棒的书，心情久久不能平静 📖",
+  "加班到现在的第四天，真想去有海的城市躺两天 🌊"
+];
 
 /* ---------- 虚拟用户种子 ---------- */
 const SEED_NAMES = [
@@ -235,11 +283,30 @@ function seedUsers(){
     online: Math.random() > .4
   }));
   DB.set("bots", bots);
+  const posts = bots.map((b, i) => ({ id: uid(), uid: b.id, text: BOT_POSTS[i % BOT_POSTS.length],
+    ts: Date.now() - Math.floor(Math.random() * 72 + 6) * 3600e3, likes: [], comments: [] }));
+  DB.set("posts", posts);
 }
 const me = () => DB.get("session") ? DB.get("users", []).find(u => u.id === DB.get("session")) : null;
 const allPeople = () => [...DB.get("bots", []), ...DB.get("users", []).filter(u => !me() || u.id !== me().id)];
 const getLikes = () => DB.get("likes", {});          // {myId: [targetId,...]}
 const getMatches = () => DB.get("matches", []);      // [{id, a, b, ts, msgs:[], lastRead:{}}]
+const getPosts = () => DB.get("posts", []);          // [{id, uid, text, ts, likes:[], comments:[]}]
+const getVisits = () => DB.get("visits", {});        // {myId: [{uid, ts}]}
+function getFilter(){
+  const m = me(); const fs = DB.get("filters", {});
+  fs[m.id] = fs[m.id] || { gender: "all", age: "all", city: "all", online: false };
+  return fs;
+}
+function completion(u){
+  let s = 0;
+  if (u.bio && !u.bio.includes("神秘")) s += 30;
+  if ((u.tags || []).length >= 3) s += 30;
+  if (u.gender && u.city && u.age) s += 15;
+  if (u.avatar) s += 15;
+  if ((u.tags || []).length >= 1) s += 10;
+  return s;
+}
 
 /* ---------- 匹配逻辑 ---------- */
 function like(targetId, superLike){
@@ -258,9 +325,21 @@ function like(targetId, superLike){
       if (!back[t.id].includes(m.id)) back[t.id].push(m.id);
       DB.set("likes", back);
       createMatch(m.id, t.id);
+      botOpening(m.id, t.id);
       setTimeout(() => toast(`💞 配对成功！${t.name} 也喜欢你`, "love"), 450);
     }
   }
+}
+function botOpening(matchId, botId){
+  setTimeout(() => {
+    const ms = getMatches(); const x = ms.find(r => r.id === matchId);
+    if (!x || x.msgs.length) return;
+    const b = allPeople().find(p => p.id === botId); if (!b) return;
+    x.msgs.push({ from: botId, text: OPENINGS[Math.floor(Math.random() * OPENINGS.length)], ts: Date.now() });
+    DB.set("matches", ms);
+    toast(`💬 ${b.name} 打了个招呼`, "love");
+    if (route.page === "matches") render();
+  }, 1800 + Math.random() * 2500);
 }
 function createMatch(a, b){
   const ms = getMatches();
@@ -297,6 +376,7 @@ function render(){
     <div class="nav-links">
       ${m ? `
         <a class="${route.page==='discover'?'on':''}" href="#" onclick="go('discover');return false">🔥 发现</a>
+        <a class="${route.page==='posts'?'on':''}" href="#" onclick="go('posts');return false">✨ 动态</a>
         <a class="${route.page==='matches'?'on':''}" href="#" onclick="go('matches');return false">💞 匹配${unread?`<span class="bdg">${unread}</span>`:""}</a>
         <a class="${route.page==='likedme'?'on':''}" href="#" onclick="go('likedme');return false">❤️ 喜欢我</a>
         <a class="${route.page==='profile'?'on':''}" href="#" onclick="go('profile');return false">👤 我的</a>
@@ -316,9 +396,10 @@ function render(){
   if (!m && route.page !== "auth") P.innerHTML = vHome();
   else if (route.page === "auth" && !m) P.innerHTML = vAuth();
   else if (route.page === "discover") P.innerHTML = vDiscover();
+  else if (route.page === "posts") P.innerHTML = vPosts();
   else if (route.page === "matches") P.innerHTML = vMatches();
   else if (route.page === "chat") P.innerHTML = vChat(route.arg);
-  else if (route.page === "likedme") P.innerHTML = vLikedMe();
+  else if (route.page === "likedme") P.innerHTML = vLikedMe(route.arg);
   else if (route.page === "profile") P.innerHTML = vProfile();
   else P.innerHTML = m ? vDiscover() : vHome();
   if (m && (route.page === "home")) route.page = "discover";
@@ -399,18 +480,63 @@ function doAuth(){
 /* ===== 页面：发现(滑动匹配) ===== */
 const getSkips = () => DB.get("skips", {});          // {myId: [targetId,...]}
 function discoverQueue(){
-  const m = me(); const likes = getLikes()[m.id] || [];
+  const m = me();
+  const f = getFilter()[m.id];
+  const likes = getLikes()[m.id] || [];
   const skips = getSkips()[m.id] || [];
   const matchedIds = myMatches().map(x => x.other.id);
-  return allPeople().filter(p => !likes.includes(p.id) && !skips.includes(p.id) && !matchedIds.includes(p.id));
+  return allPeople().filter(p => {
+    if (likes.includes(p.id) || skips.includes(p.id) || matchedIds.includes(p.id)) return false;
+    if (f.gender !== "all" && p.gender !== f.gender) return false;
+    if (f.city !== "all" && p.city !== f.city) return false;
+    if (f.online && !p.online) return false;
+    if (f.age !== "all"){
+      const r = f.age.split("-").map(Number);
+      if (p.age < r[0] || p.age > r[1]) return false;
+    }
+    return true;
+  });
+}
+function filterActive(){
+  const f = getFilter()[me().id];
+  return f.gender !== "all" || f.age !== "all" || f.city !== "all" || f.online;
+}
+function setFilter(key, val){
+  const m = me(); const fs = DB.get("filters", {});
+  fs[m.id] = fs[m.id] || { gender: "all", age: "all", city: "all", online: false };
+  fs[m.id][key] = val === "true" ? true : val === "false" ? false : val;
+  DB.set("filters", fs);
+  render();
+}
+function clearFilter(){
+  const m = me(); const fs = DB.get("filters", {});
+  fs[m.id] = { gender: "all", age: "all", city: "all", online: false };
+  DB.set("filters", fs);
+  toast("已清除筛选条件", "ok"); render();
 }
 function vDiscover(){
-  const q = discoverQueue();
-  if (!q.length) return `<section class="section"><div class="wrap"><div class="deck-empty"><div class="big">🌈</div><h3>今天的缘分刷完啦</h3><p style="margin-top:8px">明天再来，或去「匹配」看看已有的心动</p><div style="display:flex;gap:10px;justify-content:center;margin-top:18px"><button class="btn btn-pri" onclick="go('matches')">去看匹配 →</button>${(getSkips()[me().id]||[]).length?`<button class="btn btn-ghost" onclick="resetSkips()">找回略过的人</button>`:""}</div></div></div></section>`;
+  let q = discoverQueue();
+  const pin = DB.get("pin");
+  if (pin){ const i = q.findIndex(p => p.id === pin); if (i > 0) q.unshift(q.splice(i, 1)[0]); }
+  const f = getFilter()[me().id];
+  if (!q.length) return `<section class="section"><div class="wrap"><div class="deck-empty"><div class="big">🌈</div><h3>今天的缘分刷完啦</h3><p style="margin-top:8px">明天再来，或去「匹配」看看已有的心动</p><div style="display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap"><button class="btn btn-pri" onclick="go('matches')">去看匹配 →</button>${(getSkips()[me().id]||[]).length?`<button class="btn btn-ghost" onclick="resetSkips()">找回略过的人</button>`:""}${filterActive()?`<button class="btn btn-ghost" onclick="clearFilter()">清除筛选条件</button>`:""}</div></div></div></section>`;
   const p = q[0];
   return `
   <section class="section"><div class="wrap">
     <div class="sec-head"><div><h2>🔥 发现心动</h2><p>右滑或点 ❤️ 喜欢 · 左滑或点 ✖️ 略过</p></div><span style="font-size:13px;color:var(--muted)">还有 ${q.length} 位</span></div>
+    <div class="filter-bar">
+      <button class="fb ${f.gender==='all'?'on':''}" onclick="setFilter('gender','all')">全部</button>
+      <button class="fb ${f.gender==='女'?'on':''}" onclick="setFilter('gender','女')">👧 女生</button>
+      <button class="fb ${f.gender==='男'?'on':''}" onclick="setFilter('gender','男')">👦 男生</button>
+      <select class="${f.city!=='all'?'on':''}" onchange="setFilter('city',this.value)">
+        <option value="all">🏙 全部城市</option>
+        ${CITIES.map(c=>`<option value="${c}" ${f.city===c?'selected':''}>${c}</option>`).join("")}
+      </select>
+      <select class="${f.age!=='all'?'on':''}" onchange="setFilter('age',this.value)">
+        ${[["all","🎂 全部年龄"],["18-25","18-25 岁"],["26-32","26-32 岁"],["33-99","33 岁以上"]].map(([v,l])=>`<option value="${v}" ${f.age===v?'selected':''}>${l}</option>`).join("")}
+      </select>
+      <button class="fb ${f.online?'on':''}" onclick="setFilter('online',${!f.online})">● 只看在线</button>
+    </div>
     <div class="deck">
       <div class="swipe-card" id="card">
         <div class="swipe-photo" style="${photoStyle(p)}">
@@ -440,6 +566,7 @@ function swipe(kind){
   const q = discoverQueue(); if (!q.length) return;
   const p = q[0];
   swiping = true;
+  DB.set("pin", null);
   card.style.transform = "";
   $("#stamp-like").style.opacity = 0; $("#stamp-nope").style.opacity = 0;
   card.classList.add(kind === "nope" ? "fly-nope" : "fly-like");
@@ -523,9 +650,14 @@ function vChat(matchId){
         <div><b>${esc(x.other.name)}</b><div style="font-size:12px;color:var(--muted)">${x.other.online ? "● 在线" : "离线"} · ${esc(x.other.city)}</div></div>
       </div>
       <div class="chat-msgs" id="msgs">
-        ${x.msgs.length ? x.msgs.map(g => `<div class="bubble ${g.from === m.id ? "me" : "them"}">${esc(g.text)}<span class="bt">${fmtTime(g.ts)}</span></div>`).join("")
+        ${x.msgs.length ? x.msgs.map((g, i) => {
+          const own = g.from === m.id;
+          const canRecall = own && !g.recalled && Date.now() - g.ts < 5 * 60e3;
+          return `<div class="bubble ${own ? "me" : "them"}" ${canRecall ? `title="双击撤回" ondblclick="recallMsg('${x.id}',${i})"` : ""}>${g.recalled ? '<i style="opacity:.75;font-style:normal">消息已撤回</i>' : esc(g.text)}<span class="bt">${fmtTime(g.ts)}</span></div>`;
+        }).join("")
           : `<div class="empty" style="padding:20px">配对成功 🎉<br>说点什么，开始你们的故事吧</div>`}
       </div>
+      <div class="quick-row">${QUICKS.map(q => `<button onclick="quickSend('${x.id}',this)">${q}</button>`).join("")}</div>
       <div class="chat-input">
         <input id="chat-in" placeholder="发送消息…" onkeydown="if(event.key==='Enter')sendMsg('${x.id}')">
         <button class="btn btn-pri" onclick="sendMsg('${x.id}')">发送</button>
@@ -539,7 +671,6 @@ function sendMsg(matchId){
   const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
   x.msgs.push({ from: m.id, text, ts: Date.now() });
   DB.set("matches", ms);
-  // 机器人模拟回复（带打字指示器）
   const otherId = x.a === m.id ? x.b : x.a;
   const other = allPeople().find(p => p.id === otherId);
   if (other && other.bot){
@@ -562,22 +693,132 @@ function sendMsg(matchId){
   render();
   setTimeout(() => { const b = $("#msgs"); if (b) b.scrollTop = b.scrollHeight; }, 30);
 }
+function quickSend(matchId, btn){
+  const inp = $("#chat-in"); if (!inp) return;
+  inp.value = btn.textContent;
+  sendMsg(matchId);
+}
+function recallMsg(matchId, i){
+  const m = me(); const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
+  const g = x.msgs[i];
+  if (!g || g.from !== m.id || g.recalled) return;
+  if (Date.now() - g.ts > 5 * 60e3) return toast("超过 5 分钟，无法撤回", "bad");
+  g.recalled = true;
+  DB.set("matches", ms);
+  toast("已撤回", "ok"); render();
+}
 
-/* ===== 页面：喜欢我的人 ===== */
-function vLikedMe(){
+/* ===== 页面：动态广场 ===== */
+function vPosts(){
+  const m = me();
+  const posts = [...getPosts()].sort((a, b) => b.ts - a.ts)
+    .filter(p => allPeople().some(u => u.id === p.uid));
+  return `
+  <section class="section"><div class="wrap" style="max-width:640px">
+    <div class="sec-head"><div><h2>✨ 动态广场</h2><p>分享生活，让心动有处安放</p></div></div>
+    <div class="composer">
+      <textarea id="post-ta" maxlength="500" placeholder="此刻的心情、今天的见闻…"></textarea>
+      <div class="c-foot"><button class="btn btn-pri btn-sm" onclick="publishPost()">发布动态</button></div>
+    </div>
+    ${posts.length ? posts.map(p => {
+      const u = allPeople().find(u => u.id === p.uid);
+      const liked = p.likes.includes(m.id);
+      return `<div class="post">
+        <div class="p-head">
+          <div class="pa" style="${photoStyle(u)}">${u.avatar}</div>
+          <div><b style="font-size:14.5px">${esc(u.name)}${u.id === m.id ? ' <span class="chip">我</span>' : ""}</b>
+          <div style="font-size:12px;color:var(--muted)">${fmtTime(p.ts)} · 📍 ${esc(u.city)}</div></div>
+        </div>
+        <div class="p-text">${esc(p.text)}</div>
+        <div class="p-acts">
+          <button class="${liked ? 'on' : ''}" onclick="toggleLike('${p.id}')">❤️ ${p.likes.length ? p.likes.length : "点赞"}</button>
+          <button onclick="focusCmt('${p.id}')">💬 ${p.comments.length ? p.comments.length : "评论"}</button>
+        </div>
+        ${p.comments.length ? `<div class="p-cmts">${p.comments.map(c => {
+          const cu = allPeople().find(u => u.id === c.uid);
+          return cu ? `<div class="cm"><b>${esc(cu.name)}</b>：${esc(c.text)}</div>` : "";
+        }).join("")}</div>` : ""}
+        <div class="c-in"><input id="ci-${p.id}" placeholder="友善评论…" onkeydown="if(event.key==='Enter')addComment('${p.id}')"><button class="btn btn-ghost btn-sm" onclick="addComment('${p.id}')">评论</button></div>
+      </div>`; }).join("")
+    : `<div class="empty">还没有动态，发第一条吧 ✨</div>`}
+  </div></section>`;
+}
+function publishPost(){
+  const m = me(); const ta = $("#post-ta"); const text = ta.value.trim();
+  if (!text) return toast("写点什么再发布吧", "bad");
+  const posts = getPosts();
+  const p = { id: uid(), uid: m.id, text, ts: Date.now(), likes: [], comments: [] };
+  posts.unshift(p);
+  DB.set("posts", posts);
+  toast("发布成功 ✨", "ok");
+  botEngage(p.id);
+  render();
+}
+function botEngage(postId){
+  const bots = DB.get("bots", []); if (!bots.length) return;
+  setTimeout(() => {
+    const posts = getPosts(); const p = posts.find(x => x.id === postId); if (!p) return;
+    const n = 1 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < n; i++){
+      const b = bots[Math.floor(Math.random() * bots.length)];
+      if (!p.likes.includes(b.id)) p.likes.push(b.id);
+      if (Math.random() < 0.5 && p.comments.length < 3)
+        p.comments.push({ uid: b.id, text: BOT_COMMENTS[Math.floor(Math.random() * BOT_COMMENTS.length)], ts: Date.now() });
+    }
+    DB.set("posts", posts);
+    toast("❤️ 有人赞了你的动态", "love");
+    if (route.page === "posts") render();
+  }, 2500 + Math.random() * 4000);
+}
+function toggleLike(pid){
+  const m = me(); const posts = getPosts(); const p = posts.find(x => x.id === pid); if (!p) return;
+  const i = p.likes.indexOf(m.id);
+  if (i >= 0) p.likes.splice(i, 1); else p.likes.push(m.id);
+  DB.set("posts", posts); render();
+}
+function focusCmt(pid){ const i = $("#ci-" + pid); if (i) i.focus(); }
+function addComment(pid){
+  const m = me(); const inp = $("#ci-" + pid); const text = inp ? inp.value.trim() : "";
+  if (!text) return toast("评论不能为空", "bad");
+  const posts = getPosts(); const p = posts.find(x => x.id === pid); if (!p) return;
+  p.comments.push({ uid: m.id, text, ts: Date.now() });
+  DB.set("posts", posts); render();
+}
+
+/* ===== 页面：心动消息（喜欢我 / 看过我） ===== */
+function vLikedMe(tab){
+  tab = tab === "visits" ? "visits" : "likes";
   const m = me();
   const likes = getLikes()[m.id] || [];
   const list = likedMe();
-  return `
-  <section class="section"><div class="wrap">
-    <div class="sec-head"><div><h2>❤️ 喜欢我的人</h2><p>${list.length} 位用户对你心动</p></div></div>
-    ${list.length ? `<div class="grid g4">` + list.map(p => `
+  const visits = (getVisits()[m.id] || [])
+    .map(v => ({ ...v, u: allPeople().find(p => p.id === v.uid) }))
+    .filter(v => v.u).sort((a, b) => b.ts - a.ts);
+  const likeHtml = list.length ? `<div class="grid g4">` + list.map(p => `
       <div class="pcard" onclick="likeBack('${p.id}')">
         <div class="ph" style="${photoStyle(p)}">${p.avatar}${likes.includes(p.id) ? "" : '<span class="new">心动</span>'}</div>
         <div class="pi"><h4>${esc(p.name)} · ${p.age}</h4><p>📍 ${esc(p.city)} · ${esc((p.tags||[]).slice(0,2).join(" / "))}</p></div>
       </div>`).join("") + `</div>`
-    : `<div class="empty">还没有人喜欢你，去完善资料或在「发现」页多互动吧 💪</div>`}
+    : `<div class="empty">还没有人喜欢你，去完善资料或在「发现」页多互动吧 💪</div>`;
+  const visitHtml = visits.length ? `<div class="grid g4">` + visits.map(v => `
+      <div class="pcard" onclick="viewUser('${v.u.id}')">
+        <div class="ph" style="${photoStyle(v.u)}">${v.u.avatar}</div>
+        <div class="pi"><h4>${esc(v.u.name)} · ${v.u.age}</h4><p>👀 ${fmtTime(v.ts)} 看过你</p><p>📍 ${esc(v.u.city)}</p></div>
+      </div>`).join("") + `</div>`
+    : `<div class="empty">还没有访客，完善资料能提高被看到的概率 💪</div>`;
+  return `
+  <section class="section"><div class="wrap">
+    <div class="sec-head"><div><h2>❤️ 心动消息</h2><p>${tab === "likes" ? list.length + " 位用户对你心动" : visits.length + " 位用户看过你的资料"}</p></div></div>
+    <div class="filter-bar" style="margin-bottom:18px">
+      <button class="fb ${tab === 'likes' ? 'on' : ''}" onclick="go('likedme','likes')">❤️ 喜欢我 · ${list.length}</button>
+      <button class="fb ${tab === 'visits' ? 'on' : ''}" onclick="go('likedme','visits')">👀 看过我 · ${visits.length}</button>
+    </div>
+    ${tab === "likes" ? likeHtml : visitHtml}
   </div></section>`;
+}
+function viewUser(pid){
+  DB.set("pin", pid);
+  go("discover");
 }
 function likeBack(pid){
   like(pid, true);
@@ -589,11 +830,18 @@ function likeBack(pid){
 function vProfile(){
   const m = me();
   const stats = { likes: (getLikes()[m.id] || []).length, matches: myMatches().length, likedMe: likedMe().length, msgs: myMatches().reduce((n, x) => n + x.msgs.length, 0) };
+  const done = completion(m);
+  const doneTip = done >= 90 ? "资料超棒，继续保持 ✨" : done >= 60 ? "再补几条兴趣标签，心动率会更高 💪" : "资料太薄啦，快把介绍和兴趣标签填上 📝";
   return `
   <section class="section"><div class="wrap" style="max-width:720px">
     <div class="sec-head"><div><h2>👤 我的资料</h2><p>完善资料可以显著提高匹配率</p></div>
       <button class="btn btn-ghost btn-sm" onclick="wipeData()">清空本地数据</button>
       <button class="btn btn-ghost btn-sm" onclick="logout()">退出登录</button></div>
+    <div class="card done-wrap">
+      <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:8px"><b>资料完善度</b><span style="color:var(--pri);font-weight:700">${done}%</span></div>
+      <div class="done-bar"><i style="width:${done}%"></i></div>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:8px">${doneTip}</div>
+    </div>
     <div class="stat-grid" style="margin-bottom:22px">
       <div class="stat"><b>${stats.matches}</b><span>💞 匹配</span></div>
       <div class="stat"><b>${stats.likes}</b><span>❤️ 我喜欢</span></div>
@@ -660,6 +908,19 @@ function toggleTheme(){
 }
 
 /* ---------- 启动 ---------- */
+function simVisits(){
+  const m = me(); if (!m) return;
+  const bots = DB.get("bots", []); if (!bots.length) return;
+  const vs = DB.get("visits", {});
+  vs[m.id] = vs[m.id] || [];
+  const dayAgo = Date.now() - 24 * 3600e3;
+  bots.forEach(b => {
+    if (Math.random() < 0.25 && !vs[m.id].some(v => v.uid === b.id && v.ts > dayAgo))
+      vs[m.id].push({ uid: b.id, ts: Date.now() - Math.floor(Math.random() * 3600e3) });
+  });
+  vs[m.id] = vs[m.id].sort((a, b) => b.ts - a.ts).slice(0, 50);
+  DB.set("visits", vs);
+}
 function afterRender(){
   bindDrag();
   bindKeys();
@@ -682,7 +943,7 @@ if (location.protocol === "http:" || location.protocol === "https:"){
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 seedUsers();
-if (me()) route.page = "discover";
+if (me()){ route.page = "discover"; simVisits(); }
 render();
 </script>
 </body>
