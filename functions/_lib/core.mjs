@@ -16,7 +16,9 @@ export async function authUser(request, env){
   const token = h.startsWith("Bearer ") ? h.slice(7).trim() : "";
   if (!token) return null;
   try {
-    return await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?1").bind(token).first();
+    const row = await env.DB.prepare("SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?1").bind(token).first();
+    if (row) await env.DB.prepare("UPDATE users SET last_seen = ?1 WHERE id = ?2").bind(Date.now(), row.id).run();
+    return row || null;
   } catch (e){ return null; }
 }
 export function safeUser(u){

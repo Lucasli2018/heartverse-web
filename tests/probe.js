@@ -151,6 +151,10 @@ class CDP {
     }`);
     ok(await cdp.eval(`!!document.querySelector(".bubble img.msg-img")`), "图片气泡渲染");
     ok(await cdp.eval(`document.body.innerHTML.includes("📷")`), "📷 发图按钮存在");
+    await cdp.eval(`document.querySelector(".msg-img").click()`);
+    ok(await cdp.eval(`!!document.querySelector("#imgview") && document.querySelector("#imgview").style.display === "flex"`), "大图预览打开");
+    await cdp.eval(`document.querySelector("#imgview").click()`);
+    ok(await cdp.eval(`document.querySelector("#imgview").style.display === "none"`), "大图预览关闭");
 
     console.log("== v1.2 举报拉黑 ==");
     await cdp.eval(`

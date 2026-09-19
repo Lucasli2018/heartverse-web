@@ -186,6 +186,9 @@ input,select,textarea{font-family:inherit;font-size:15px}
 .couple-card .cpa{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
 .block-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14px}
 .block-row:last-child{border:none}
+.prop-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-soft);border:1.5px solid var(--pri);border-radius:12px;padding:10px 14px;margin:12px;font-size:14px}
+#imgview{position:fixed;inset:0;background:rgba(20,8,14,.88);display:none;align-items:center;justify-content:center;z-index:200;cursor:zoom-out}
+#imgview img{max-width:92vw;max-height:92vh;border-radius:12px}
 
 /* Toast */
 #toasts{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:99;display:flex;flex-direction:column;gap:10px;align-items:center;width:min(92vw,360px)}
@@ -356,7 +359,9 @@ function upsertRealUser(u, isMe){
   const list = getRUsers();
   let rec = list.find(x => x.cid === u.cid);
   if (!rec){ rec = { id: "c" + u.cid, cid: u.cid, cloud: true, bg: PHOTO_BG[list.length % PHOTO_BG.length], ts: Date.now() }; list.push(rec); }
-  Object.assign(rec, { name: u.name, gender: u.gender, age: u.age, city: u.city, bio: u.bio, avatar: u.avatar, tags: u.tags || [], online: true });
+  Object.assign(rec, { name: u.name, gender: u.gender, age: u.age, city: u.city, bio: u.bio, avatar: u.avatar, tags: u.tags || [],
+    last_seen: u.last_seen || rec.last_seen || 0,
+    online: u.last_seen ? (Date.now() - u.last_seen < 120e3) : (rec.online || false) });
   if (!isMe) DB.set("rusers", list);
   return rec;
 }
@@ -432,10 +437,20 @@ function addRealMatch(s){
 function applyRealMatch(local, s, m, other){
   local.pinned = !!s.pinned;
   local.lastRead = { [m.id]: s.my_read || 0 };
+  local.proposal_in = s.proposal_in || null;
+  local.proposal_out = !!s.proposal_out;
   local.msgs = (s.msgs || []).map(g => ({
     sid: g.id, from: g.sender === m.cid ? m.id : other.id,
     text: g.text || "", img: g.img || "", recalled: !!g.recalled, ts: g.ts
   }));
+  const cs = DB.get("couples", {});
+  if (s.couple && (!cs[m.id] || cs[m.id].uid !== other.id || cs[m.id].since !== s.couple.since)){
+    cs[m.id] = { uid: other.id, since: s.couple.since };
+    DB.set("couples", cs);
+  } else if (!s.couple && cs[m.id] && cs[m.id].uid === other.id){
+    delete cs[m.id];
+    DB.set("couples", cs);
+  }
 }
 async function syncMatches(){
   if (!Cloud.on() || !me()) return false;
@@ -479,6 +494,18 @@ async function syncLikedMe(){
     j.users.forEach(u => upsertRealUser(u));
     const sig = j.users.map(u => u.cid).join(",");
     if (sig !== likedMeSynced){ likedMeSynced = sig; DB.set("cloud_likedme", sig); render(); }
+  } catch (e){}
+}
+let visitsSynced = "";
+async function syncVisits(){
+  if (!Cloud.on()) return;
+  try {
+    const j = await Cloud.req("/visits");
+    const sig = j.visits.map(v => v.cid).join(",");
+    const tsMap = {};
+    j.visits.forEach(v => { upsertRealUser(v); tsMap[v.cid] = v.visited_at; });
+    DB.set("cloud_visits_ts", tsMap);
+    if (sig !== visitsSynced){ visitsSynced = sig; DB.set("cloud_visits_sig", sig); if (route.page === "likedme") render(); }
   } catch (e){}
 }
 function botOpening(matchId, botId){
@@ -863,10 +890,13 @@ function vChat(matchId){
         </div>
         <div class="hbtns">
           <button title="${x.pinned ? "取消置顶" : "置顶聊天"}" onclick="togglePin('${x.id}')">📌</button>
-          ${!(couple && couple.uid === x.other.id) ? `<button title="表白" onclick="propose('${x.id}')">💗</button>` : ""}
+          <button title="表白" onclick="propose('${x.id}')" style="display:${(couple && couple.uid === x.other.id) || x.proposal_out || x.proposal_in ? "none" : "flex"}">💗</button>
           <button title="举报并拉黑" onclick="blockUser('${x.id}')">⚠️</button>
         </div>
       </div>
+      ${x.proposal_in ? `<div class="prop-banner">💗 <b>${esc(x.other.name)}</b> 向你表白了！
+        <button class="btn btn-pri btn-sm" onclick="acceptProposal('${x.id}','${x.proposal_in.id}',true)">接受 💞</button>
+        <button class="btn btn-ghost btn-sm" onclick="acceptProposal('${x.id}','${x.proposal_in.id}',false)">婉拒</button></div>` : ""}
       <div class="chat-msgs" id="msgs">
         ${x.msgs.length ? x.msgs.map((g, i) => {
           const own = g.from === m.id;
@@ -1008,6 +1038,12 @@ function propose(matchId){
   const otherId = x.a === m.id ? x.b : x.a;
   const other = allPeople().find(p => p.id === otherId); if (!other) return;
   if (getCouple()) return toast("你已经在恋爱中啦 💞", "bad");
+  if (x.real && Cloud.on()){
+    Cloud.req("/propose", { method: "POST", body: JSON.stringify({ match: x.id }) })
+      .then(() => { x.proposal_out = true; DB.set("matches", getMatches()); toast("表白已送达 💗 等待 TA 的回应", "love"); render(); })
+      .catch(e => toast(e.message || "表白失败", "bad"));
+    return;
+  }
   x.msgs.push({ from: m.id, text: `我想和你认真在一起，${other.gender === "男" ? "你愿意做我的男朋友" : "你愿意做我的女朋友"}吗？💗`, ts: Date.now() });
   DB.set("matches", ms);
   render();
@@ -1027,6 +1063,14 @@ function propose(matchId){
     }
     if (route.page === "chat" && route.arg === matchId) render();
   }, 1600 + Math.random() * 1500);
+}
+function acceptProposal(matchId, pid, accept){
+  Cloud.req("/proposal", { method: "POST", body: JSON.stringify({ id: pid, accept: !!accept }) })
+    .then(() => {
+      toast(accept ? "💞 恭喜！你们在一起啦" : "已婉拒", accept ? "love" : "");
+      syncMatches().then(ch => { if (ch) render(); });
+    })
+    .catch(e => toast(e.message || "操作失败", "bad"));
 }
 function blockUser(matchId){
   const m = me(); const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
@@ -1054,41 +1098,77 @@ function unblockUser(pid){
 }
 function breakup(){
   if (!confirm("确定结束这段关系吗？")) return;
-  const m = me(); const cs = DB.get("couples", {}); delete cs[m.id]; DB.set("couples", cs);
+  const m = me(); const cs = DB.get("couples", {}); const c = cs[m.id];
+  const partner = c ? c.uid : null;
+  delete cs[m.id]; DB.set("couples", cs);
+  if (Cloud.on() && partner){
+    const x = getMatches().find(r => r.real && (r.a === partner || r.b === partner));
+    if (x) Cloud.req("/breakup", { method: "POST", body: JSON.stringify({ match: x.id }) })
+      .then(() => syncMatches()).catch(() => {});
+  }
   toast("已结束关系，愿各自安好 🍂", ""); render();
 }
 
 /* ===== 页面：动态广场 ===== */
+const photoBgFor = cid => PHOTO_BG[String(cid).split("").reduce((n, c) => n + c.charCodeAt(0), 0) % PHOTO_BG.length];
+const getCloudPosts = () => DB.get("cloud_posts", []);
+let lastPostsSync = 0, postsGen = 0;
+async function syncPosts(){
+  if (!Cloud.on()) return false;
+  const gen = ++postsGen;
+  try {
+    const j = await Cloud.req("/posts");
+    if (gen !== postsGen) return false; // 过期响应丢弃（防发布回写被旧数据覆盖）
+    const mapped = j.posts.map(p => ({ sid: p.sid, uid: p.author.cid, author: { ...p.author, bg: photoBgFor(p.author.cid) },
+      text: p.text, ts: p.ts, liked: p.liked, likeCount: p.likes, comments: p.comments || [] }));
+    const before = JSON.stringify(DB.get("cloud_posts", []));
+    DB.set("cloud_posts", mapped);
+    return JSON.stringify(mapped) !== before;
+  } catch (e){ return false; }
+}
 function vPosts(){
   const m = me();
-  const posts = [...getPosts()].sort((a, b) => b.ts - a.ts)
-    .filter(p => allPeople().some(u => u.id === p.uid));
+  if (Cloud.on() && Date.now() - lastPostsSync > 4000){
+    lastPostsSync = Date.now();
+    syncPosts().then(ch => { if (ch && route.page === "posts") render(); }).catch(() => {});
+  }
+  const local = [...getPosts()].sort((a, b) => b.ts - a.ts)
+    .filter(p => allPeople().some(u => u.id === p.uid))
+    .map(p => ({ kind: "local", p, u: allPeople().find(u => u.id === p.uid) }));
+  const cloud = getCloudPosts().map(p => ({ kind: "cloud", p, u: null }));
+  const merged = local.concat(cloud).sort((a, b) => b.p.ts - a.p.ts);
   return `
   <section class="section"><div class="wrap" style="max-width:640px">
-    <div class="sec-head"><div><h2>✨ 动态广场</h2><p>分享生活，让心动有处安放</p></div></div>
+    <div class="sec-head"><div><h2>✨ 动态广场</h2><p>分享生活，让心动有处安放${Cloud.on() ? " · ☁️ 云端同步" : ""}</p></div></div>
     <div class="composer">
       <textarea id="post-ta" maxlength="500" placeholder="此刻的心情、今天的见闻…"></textarea>
       <div class="c-foot"><button class="btn btn-pri btn-sm" onclick="publishPost()">发布动态</button></div>
     </div>
-    ${posts.length ? posts.map(p => {
-      const u = allPeople().find(u => u.id === p.uid);
-      const liked = p.likes.includes(m.id);
+    ${merged.length ? merged.map(({ kind, p, u }) => {
+      const isCloud = kind === "cloud";
+      const name = isCloud ? p.author.name : u.name;
+      const avatar = isCloud ? p.author.avatar : u.avatar;
+      const bg = isCloud ? p.author.bg : photoStyle(u);
+      const city = isCloud ? (p.author.city || "") : u.city;
+      const isMe = isCloud ? p.uid === m.cid : u.id === m.id;
+      const liked = isCloud ? p.liked : p.likes.includes(m.id);
+      const likeN = isCloud ? p.likeCount : p.likes.length;
+      const cmts = isCloud ? p.comments : p.comments;
       return `<div class="post">
         <div class="p-head">
-          <div class="pa" style="${photoStyle(u)}">${u.avatar}</div>
-          <div><b style="font-size:14.5px">${esc(u.name)}${u.id === m.id ? ' <span class="chip">我</span>' : ""}</b>
-          <div style="font-size:12px;color:var(--muted)">${fmtTime(p.ts)} · 📍 ${esc(u.city)}</div></div>
+          <div class="pa" style="${bg}">${avatar}</div>
+          <div><b style="font-size:14.5px">${esc(name)}${isMe ? ' <span class="chip">我</span>' : ""}</b>
+          <div style="font-size:12px;color:var(--muted)">${fmtTime(p.ts)}${city ? " · 📍 " + esc(city) : ""}</div></div>
         </div>
         <div class="p-text">${esc(p.text)}</div>
         <div class="p-acts">
-          <button class="${liked ? 'on' : ''}" onclick="toggleLike('${p.id}')">❤️ ${p.likes.length ? p.likes.length : "点赞"}</button>
-          <button onclick="focusCmt('${p.id}')">💬 ${p.comments.length ? p.comments.length : "评论"}</button>
+          ${isCloud
+            ? `<button class="${liked ? 'on' : ''}" onclick="cloudLike('${p.sid}')">❤️ ${likeN || "点赞"}</button>`
+            : `<button class="${liked ? 'on' : ''}" onclick="toggleLike('${p.id}')">❤️ ${likeN || "点赞"}</button>`}
+          <button onclick="focusCmt('${isCloud ? "c" + p.sid : p.id}')">💬 ${cmts.length || "评论"}</button>
         </div>
-        ${p.comments.length ? `<div class="p-cmts">${p.comments.map(c => {
-          const cu = allPeople().find(u => u.id === c.uid);
-          return cu ? `<div class="cm"><b>${esc(cu.name)}</b>：${esc(c.text)}</div>` : "";
-        }).join("")}</div>` : ""}
-        <div class="c-in"><input id="ci-${p.id}" placeholder="友善评论…" onkeydown="if(event.key==='Enter')addComment('${p.id}')"><button class="btn btn-ghost btn-sm" onclick="addComment('${p.id}')">评论</button></div>
+        ${cmts.length ? `<div class="p-cmts">${cmts.map(c => `<div class="cm"><b>${esc(c.name)}</b>：${esc(c.text)}</div>`).join("")}</div>` : ""}
+        <div class="c-in"><input id="ci-${isCloud ? "c" + p.sid : p.id}" placeholder="友善评论…" onkeydown="if(event.key==='Enter')addComment('${isCloud ? "c" + p.sid : p.id}')"><button class="btn btn-ghost btn-sm" onclick="addComment('${isCloud ? "c" + p.sid : p.id}')">评论</button></div>
       </div>`; }).join("")
     : `<div class="empty">还没有动态，发第一条吧 ✨</div>`}
   </div></section>`;
@@ -1096,6 +1176,14 @@ function vPosts(){
 function publishPost(){
   const m = me(); const ta = $("#post-ta"); const text = ta.value.trim();
   if (!text) return toast("写点什么再发布吧", "bad");
+  if (Cloud.on()){
+    const btn = document.querySelector(".composer .btn-pri"); if (btn) btn.disabled = true;
+    Cloud.req("/post", { method: "POST", body: JSON.stringify({ text }) })
+      .then(() => { postsGen++; lastPostsSync = 0; return syncPosts(); })
+      .then(() => { toast("发布成功，云端已同步 ✨", "ok"); render(); })
+      .catch(e => { if (btn) btn.disabled = false; toast(e.message || "云端发布失败", "bad"); });
+    return;
+  }
   const posts = getPosts();
   const p = { id: uid(), uid: m.id, text, ts: Date.now(), likes: [], comments: [] };
   posts.unshift(p);
@@ -1103,6 +1191,26 @@ function publishPost(){
   toast("发布成功 ✨", "ok");
   botEngage(p.id);
   render();
+}
+function cloudLike(sid){
+  Cloud.req("/post_like", { method: "POST", body: JSON.stringify({ post: sid }) })
+    .then(j => {
+      const cps = getCloudPosts(); const p = cps.find(x => x.sid === sid);
+      if (p){ p.liked = j.liked; p.likeCount = j.count; DB.set("cloud_posts", cps); }
+      render();
+    })
+    .catch(e => toast(e.message || "操作失败", "bad"));
+}
+function cloudComment(sid){
+  const inp = $("#ci-c" + sid); const text = inp ? inp.value.trim() : "";
+  if (!text) return toast("评论不能为空", "bad");
+  Cloud.req("/comment", { method: "POST", body: JSON.stringify({ post: sid, text }) })
+    .then(j => {
+      const cps = getCloudPosts(); const p = cps.find(x => x.sid === sid);
+      if (p){ p.comments.push(j.comment); DB.set("cloud_posts", cps); }
+      render();
+    })
+    .catch(e => toast(e.message || "评论失败", "bad"));
 }
 function botEngage(postId){
   const bots = DB.get("bots", []); if (!bots.length) return;
@@ -1128,7 +1236,21 @@ function toggleLike(pid){
 }
 function focusCmt(pid){ const i = $("#ci-" + pid); if (i) i.focus(); }
 function addComment(pid){
-  const m = me(); const inp = $("#ci-" + pid); const text = inp ? inp.value.trim() : "";
+  const m = me();
+  if (String(pid).startsWith("c") && Cloud.on()){
+    const sid = pid.slice(1);
+    const inp = $("#ci-" + pid); const text = inp ? inp.value.trim() : "";
+    if (!text) return toast("评论不能为空", "bad");
+    Cloud.req("/comment", { method: "POST", body: JSON.stringify({ post: sid, text }) })
+      .then(j => {
+        const cps = getCloudPosts(); const p = cps.find(x => x.sid === sid);
+        if (p){ p.comments.push(j.comment); DB.set("cloud_posts", cps); }
+        render();
+      })
+      .catch(e => toast(e.message || "评论失败", "bad"));
+    return;
+  }
+  const inp = $("#ci-" + pid); const text = inp ? inp.value.trim() : "";
   if (!text) return toast("评论不能为空", "bad");
   const posts = getPosts(); const p = posts.find(x => x.id === pid); if (!p) return;
   p.comments.push({ uid: m.id, text, ts: Date.now() });
@@ -1145,9 +1267,14 @@ function vLikedMe(tab){
   const cloudList = cloudIds.map(id => rawPeople().find(p => p.id === id)).filter(p => p && !localList.some(x => x.id === p.id));
   const list = localList.concat(cloudList);
   if (Cloud.on()) syncLikedMe();
-  const visits = (getVisits()[m.id] || [])
+  const localVisits = (getVisits()[m.id] || [])
     .map(v => ({ ...v, u: allPeople().find(p => p.id === v.uid) }))
     .filter(v => v.u).sort((a, b) => b.ts - a.ts);
+  const cloudVisits = String(DB.get("cloud_visits_sig", "") || "").split(",").filter(Boolean)
+    .map(cid => ({ u: rawPeople().find(p => p.id === cidToId(cid)), ts: (DB.get("cloud_visits_ts", {})[cid] || 0) }))
+    .filter(v => v.u && !localVisits.some(x => x.u.id === v.u.id));
+  const visits = tab === "visits" ? localVisits.concat(cloudVisits).sort((a, b) => b.ts - a.ts) : localVisits;
+  if (Cloud.on() && tab === "visits") syncVisits();
   const likeHtml = list.length ? `<div class="grid g4">` + list.map(p => `
       <div class="pcard" onclick="likeBack('${p.id}')">
         <div class="ph" style="${photoStyle(p)}">${p.avatar}${likes.includes(p.id) ? "" : '<span class="new">心动</span>'}</div>
@@ -1172,6 +1299,8 @@ function vLikedMe(tab){
 }
 function viewUser(pid){
   DB.set("pin", pid);
+  const p = allPeople().find(x => x.id === pid);
+  if (p && p.cid && Cloud.on()) Cloud.req("/visit", { method: "POST", body: JSON.stringify({ target: p.cid }) }).catch(() => {});
   go("discover");
 }
 function likeBack(pid){
@@ -1322,6 +1451,19 @@ function swipeKeys(e){
 if (location.protocol === "http:" || location.protocol === "https:"){
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+/* 图片大图预览（事件委托，全屏遮罩） */
+document.addEventListener("click", e => {
+  const img = e.target && e.target.closest ? e.target.closest(".msg-img") : null;
+  if (!img) return;
+  let v = $("#imgview");
+  if (!v){
+    v = document.createElement("div"); v.id = "imgview";
+    document.body.appendChild(v);
+  }
+  v.innerHTML = `<img src="${img.src}" alt="预览">`;
+  v.style.display = "flex";
+  v.onclick = () => { v.style.display = "none"; };
+});
 seedUsers();
 if (me()){ route.page = "discover"; simVisits(); }
 render();

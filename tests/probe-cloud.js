@@ -94,6 +94,44 @@ async function browserEval(b, expr){ return b.cdp.eval(expr); }
   await browserEval(A, `syncMatches()`); await sleep(300);
   ok(await browserEval(A, `getMatches().find(x => x.real).msgs.some(g => g.text.includes("云端通了"))`), "A 收到 B 的回复");
 
+  console.log("== v2.1 云端动态 ==");
+  await browserEval(A, `go("posts"); $("#post-ta").value = "云端动态测试 ✨"; publishPost()`);
+  await sleep(500);
+  ok(await browserEval(A, `getCloudPosts().some(p => p.text.includes("云端动态测试"))`), "A 发布云端动态");
+  await browserEval(B, `go("posts")`); await sleep(700);
+  ok(await browserEval(B, `getCloudPosts().some(p => p.text.includes("云端动态测试"))`), "B 同步到 A 的动态");
+  await browserEval(B, `cloudLike(getCloudPosts().find(p => p.text.includes("云端动态测试")).sid)`);
+  await sleep(400);
+  ok(await browserEval(B, `getCloudPosts().find(p => p.text.includes("云端动态测试")).liked === true`), "B 点赞状态更新");
+  await browserEval(A, `syncPosts()`); await sleep(300);
+  ok(await browserEval(A, `getCloudPosts().find(p => p.text.includes("云端动态测试")).likeCount === 1`), "A 同步到点赞");
+
+  console.log("== v2.1 云端情侣 ==");
+  await browserEval(A, `go("chat", getMatches().find(x => x.real).id); propose(getMatches().find(x => x.real).id)`);
+  await sleep(400);
+  ok(await browserEval(A, `getMatches().find(x => x.real).proposal_out === true`), "A 表白送达");
+  await browserEval(B, `go("chat", getMatches().find(x => x.real).id); syncMatches()`); await sleep(500);
+  ok(await browserEval(B, `!!document.querySelector(".prop-banner")`), "B 聊天页表白横幅");
+  await browserEval(B, `acceptProposal(getMatches().find(x => x.real).id, getMatches().find(x => x.real).proposal_in.id, true)`);
+  await sleep(600);
+  await browserEval(A, `syncMatches()`); await sleep(300);
+  ok(await browserEval(A, `!!getCouple()`), "A 情侣镜像建立");
+  ok(await browserEval(A, `go("profile"); document.body.innerHTML.includes("已在一起")`), "A 资料页恋爱卡片");
+  ok(await browserEval(B, `syncMatches(); go("profile"); document.body.innerHTML.includes("已在一起")`), "B 资料页恋爱卡片");
+  await browserEval(A, `window.confirm = () => true; breakup()`);
+  await sleep(500);
+  ok(await browserEval(A, `!getCouple()`), "A 分手后情侣解除");
+  await browserEval(B, `syncMatches()`); await sleep(300);
+  ok(await browserEval(B, `!getCouple()`), "B 侧情侣同步解除");
+
+  console.log("== v2.1 访客 / 在线 ==");
+  await browserEval(A, `go("discover")`); await sleep(400);
+  await browserEval(A, `viewUser(getRUsers().find(u => u.name === "波仔").id)`);
+  await sleep(300);
+  await browserEval(B, `go("likedme", "visits"); syncVisits()`); await sleep(600);
+  ok(await browserEval(B, `(DB.get("cloud_visits_sig", "") || "").length > 0`), "B 的云端访客记录含 A");
+  ok(await browserEval(B, `getRUsers().filter(u => u.last_seen && Date.now() - u.last_seen < 120e3).length >= 1`), "真实在线状态生效");
+
   console.log("== 撤回 / 未读 / 拉黑 ==");
   await browserEval(A, `const x = getMatches().find(x => x.real); const i = x.msgs.findIndex(g => g.from === me().id && g.text.includes("云端聊天")); recallMsg(x.id, i)`);
   await sleep(400);

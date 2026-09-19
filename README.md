@@ -6,11 +6,14 @@
 
 ### 云端（v2.0 · 需部署后端）
 - ☁️ 邮箱注册 / 登录（SHA-256 口令哈希 + token 会话，跨浏览器同步）
-- 🔥 发现页含**真实用户**（排除自己/互相拉黑者）
+- 🔥 发现页含**真实用户**（排除自己/互相拉黑者），🟢 真实在线状态（2 分钟活跃）
 - 💞 双向喜欢 → 服务端建立匹配，跨设备生效
 - 💬 真实用户聊天：3 秒轮询收信、发送中/失败状态、5 分钟内撤回跨端同步、已读上报、未读角标
+- 💗 云端情侣：表白需对方同意（聊天页横幅），恋爱天数双方生效，可云端分手
+- ✨ 动态广场云端同步：真实用户发帖/点赞/评论进 D1，与机器人动态混排
+- 👀 访客记录云端同步
 - 📌 置顶聊天按人独立存储；⚠️ 举报拉黑服务端删除会话与消息
-- 📷 图片消息（canvas 本地压缩 ~480px/JPEG）
+- 📷 图片消息（canvas 本地压缩 ~480px/JPEG）+ 🖼️ 点击大图全屏预览
 - file:// 打开或后端不可达时**自动降级本地模式**，功能不缺席
 
 ### 本地（机器人生态，localStorage）
@@ -40,9 +43,9 @@ node tests/server.mjs 8787   # 本机模拟 Pages Functions + 内存 D1
 ## 测试
 
 ```bash
-D:/tools/node/node.exe tests/api.test.js      # API 单测（node:sqlite 仿真 D1，35 断言）
-D:/tools/node/node.exe tests/probe-cloud.js   # 云端 E2E（双浏览器跨用户，17 断言）
-node tests/probe.js                           # 本地模式 UI 探针（无头 Chrome，38 断言）
+D:/tools/node/node.exe tests/api.test.js      # API 单测（node:sqlite 仿真 D1，54 断言）
+D:/tools/node/node.exe tests/probe-cloud.js   # 云端 E2E（双浏览器跨用户，30 断言）
+node tests/probe.js                           # 本地模式 UI 探针（无头 Chrome，40 断言）
 ```
 
 ## 文件结构
@@ -52,10 +55,10 @@ heartverse-web/
 ├── index.html               # 前端（单文件，全部 UI 逻辑）
 ├── sw.js                    # Service Worker（页面网络优先；/api/* 永不接管）
 ├── manifest.webmanifest     # PWA 清单
-├── schema.sql               # D1 表结构（users/sessions/likes/matches/messages/blocks）
+├── schema.sql               # D1 表结构（users/sessions/likes/matches/messages/blocks/posts/post_likes/comments/visits/proposals/couples）
 ├── functions/
-│   ├── _lib/core.mjs        # 公共库（鉴权/哈希/响应）
-│   └── api/[[route]].mjs    # API 路由（register/login/users/like/matches/messages/send/recall/pin/read/block）
+│   ├── _lib/core.mjs        # 公共库（鉴权/哈希/响应/心跳）
+│   └── api/[[route]].mjs    # API 路由（auth/profile/users/like/matches/messages/send/recall/pin/read/block/posts/post_like/comment/visit/visits/propose/proposal/breakup）
 └── tests/                   # api.test.js · probe-cloud.js · probe.js · server.mjs · _d1.mjs
 ```
 

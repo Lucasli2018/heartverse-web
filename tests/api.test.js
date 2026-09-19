@@ -96,6 +96,47 @@ const U = (email, name, gender) => ({ email, pw: "secret66", name, gender, age: 
   ok(pf.data.ok === true && pf.data.user.name === "小A改" && pf.data.user.age === 27 && pf.data.user.tags.length === 3, "资料更新");
   ok((await call("PATCH", "profile", { token: ta, body: { name: "" } })).status === 400, "空昵称拒绝");
 
+  console.log("== v2.1 动态云端 ==");
+  const pp = await call("POST", "post", { token: ta, body: { text: "第一条云端动态 ✨" } });
+  ok(pp.data.ok === true && pp.data.post.sid && pp.data.post.author.name === "小A改", "发云端动态");
+  ok((await call("POST", "post", { token: ta, body: { text: "  " } })).status === 400, "空白动态拒绝");
+  const pl = await call("POST", "post_like", { token: tb, body: { post: pp.data.post.sid } });
+  ok(pl.data.liked === true && pl.data.count === 1, "B 点赞");
+  const pl2 = await call("POST", "post_like", { token: tb, body: { post: pp.data.post.sid } });
+  ok(pl2.data.liked === false && pl2.data.count === 0, "B 取消点赞");
+  await call("POST", "post_like", { token: tb, body: { post: pp.data.post.sid } });
+  const pc = await call("POST", "comment", { token: tb, body: { post: pp.data.post.sid, text: "写得好！" } });
+  ok(pc.data.ok === true && pc.data.comment.name === "小B", "B 评论");
+  const postsB = (await call("GET", "posts", { token: tb })).data.posts;
+  ok(postsB.some(p => p.sid === pp.data.post.sid && p.liked === true && p.comments.length === 1), "动态列表含点赞评论状态");
+  await call("POST", "block", { token: tb, body: { target: rc.data.user.cid } });
+  await call("POST", "post", { token: tc, body: { text: "C 的动态" } });
+  ok(!(await call("GET", "posts", { token: tb })).data.posts.some(p => p.author.cid === rc.data.user.cid), "拉黑后动态隐藏");
+  await call("POST", "block", { token: tb, body: { target: rc.data.user.cid } }); void 0;
+
+  console.log("== v2.1 访客 / 在线 ==");
+  ok((await call("POST", "visit", { token: tb, body: { target: ra.data.user.cid } })).data.ok === true, "B 访问 A 上报");
+  const vs = (await call("GET", "visits", { token: ta })).data.visits;
+  ok(vs.some(v => v.cid === rb.data.user.cid && v.visited_at > 0), "A 的访客列表含 B");
+  const meA = (await call("GET", "me", { token: ta })).data.user;
+  ok(meA.last_seen > 0, "心跳刷新 last_seen");
+
+  console.log("== v2.1 云端情侣 ==");
+  const pr = await call("POST", "propose", { token: ta, body: { match: mid } });
+  ok(pr.data.ok === true, "A 向 B 表白");
+  ok((await call("POST", "propose", { token: ta, body: { match: mid } })).status === 409, "重复表白 409");
+  const mB = (await call("GET", "matches", { token: tb })).data.matches.find(m => m.id === mid);
+  ok(mB.proposal_in && mB.proposal_in.id, "B 收到表白请求");
+  ok((await call("GET", "matches", { token: ta })).data.matches.find(m => m.id === mid).proposal_out === true, "A 侧表白待处理");
+  const ac = await call("POST", "proposal", { token: tb, body: { id: mB.proposal_in.id, accept: true } });
+  ok(ac.data.ok === true, "B 接受表白");
+  const mA2 = (await call("GET", "matches", { token: ta })).data.matches.find(m => m.id === mid);
+  ok(mA2.couple && mA2.couple.partner === rb.data.user.cid && mA2.couple.since > 0, "A 侧情侣关系生效");
+  ok((await call("GET", "matches", { token: tb })).data.matches.find(m => m.id === mid).msgs.some(g => g.text.includes("在一起")), "接受后系统消息");
+  ok((await call("POST", "propose", { token: ta, body: { match: mid } })).status === 409, "恋爱中再表白 409");
+  const bk = await call("POST", "breakup", { token: ta, body: { match: mid } });
+  ok(bk.data.ok === true && !(await call("GET", "matches", { token: tb })).data.matches.find(m => m.id === mid).couple, "分手后情侣解除");
+
   console.log(`\n结果：${pass} 通过，${fail} 失败`);
   process.exitCode = fail ? 1 : 0;
 })().catch(e => { console.error("测试异常:", e.message); process.exit(1); });

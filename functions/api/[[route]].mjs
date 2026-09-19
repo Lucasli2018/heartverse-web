@@ -192,24 +192,132 @@ export async function onRequest(context){
       await env.DB.prepare("DELETE FROM matches WHERE id = ?1").bind(m.id).run();
     }
     await env.DB.prepare("DELETE FROM likes WHERE (liker=?1 AND target=?2) OR (liker=?2 AND target=?1)").bind(me.id, target).run();
+    await env.DB.prepare("UPDATE proposals SET status = 'rejected' WHERE status = 'pending' AND ((from_uid=?1 AND to_uid=?2) OR (from_uid=?2 AND to_uid=?1))").bind(me.id, target).run();
+    await env.DB.prepare("DELETE FROM couples WHERE (user_id=?1 AND partner=?2) OR (user_id=?2 AND partner=?1)").bind(me.id, target).run();
+    return json({ ok: true });
+  }
+
+  /* ---- 动态广场（云端） ---- */
+  if (path === "posts" && method === "GET"){
+    const r = await env.DB.prepare(`SELECT p.id, p.uid, p.text, p.ts, u.name, u.avatar, u.city FROM posts p JOIN users u ON u.id = p.uid
+      WHERE p.uid NOT IN (SELECT blocked FROM blocks WHERE user_id = ?1)
+      AND p.uid NOT IN (SELECT user_id FROM blocks WHERE blocked = ?1)
+      ORDER BY p.ts DESC LIMIT 50`).bind(me.id).all();
+    const out = [];
+    for (const row of r.results){
+      const likes = await env.DB.prepare("SELECT uid FROM post_likes WHERE post_id = ?1").bind(row.id).all();
+      const cmts = await env.DB.prepare("SELECT c.id, c.uid, c.text, c.ts, u.name FROM comments c JOIN users u ON u.id = c.uid WHERE c.post_id = ?1 ORDER BY c.ts ASC LIMIT 50").bind(row.id).all();
+      out.push({ sid: row.id, author: { cid: row.uid, name: row.name, avatar: row.avatar, city: row.city }, text: row.text, ts: row.ts,
+        liked: likes.results.some(l => l.uid === me.id), likes: likes.results.length,
+        comments: cmts.results.map(c => ({ cid: c.uid, name: c.name, text: c.text, ts: c.ts })) });
+    }
+    return json({ ok: true, posts: out });
+  }
+  if (path === "post" && method === "POST"){
+    const text = String(body.text || "").trim().slice(0, 500);
+    if (!text) return bad("动态不能为空");
+    const pid = uid();
+    await env.DB.prepare("INSERT INTO posts (id, uid, text, ts) VALUES (?1,?2,?3,?4)").bind(pid, me.id, text, now()).run();
+    return json({ ok: true, post: { sid: pid, author: { cid: me.id, name: me.name, avatar: me.avatar, city: me.city }, text, ts: now(), liked: false, likes: 0, comments: [] } });
+  }
+  if (path === "post_like" && method === "POST"){
+    const pid = String(body.post || "");
+    const p = await env.DB.prepare("SELECT id FROM posts WHERE id = ?1").bind(pid).first();
+    if (!p) return bad("动态不存在", 404);
+    const hit = await env.DB.prepare("SELECT 1 AS x FROM post_likes WHERE post_id = ?1 AND uid = ?2").bind(pid, me.id).first();
+    if (hit){
+      await env.DB.prepare("DELETE FROM post_likes WHERE post_id = ?1 AND uid = ?2").bind(pid, me.id).run();
+    } else {
+      await env.DB.prepare("INSERT INTO post_likes (post_id, uid, ts) VALUES (?1,?2,?3)").bind(pid, me.id, now()).run();
+    }
+    const c = await env.DB.prepare("SELECT COUNT(*) AS n FROM post_likes WHERE post_id = ?1").bind(pid).first();
+    return json({ ok: true, liked: !hit, count: c.n });
+  }
+  if (path === "comment" && method === "POST"){
+    const pid = String(body.post || "");
+    const text = String(body.text || "").trim().slice(0, 200);
+    if (!text) return bad("评论不能为空");
+    const p = await env.DB.prepare("SELECT id FROM posts WHERE id = ?1").bind(pid).first();
+    if (!p) return bad("动态不存在", 404);
+    const cid = uid();
+    await env.DB.prepare("INSERT INTO comments (id, post_id, uid, text, ts) VALUES (?1,?2,?3,?4,?5)").bind(cid, pid, me.id, text, now()).run();
+    return json({ ok: true, comment: { cid: me.id, name: me.name, text, ts: now() } });
+  }
+
+  /* ---- 访客 ---- */
+  if (path === "visit" && method === "POST"){
+    const target = String(body.target || "");
+    if (target === me.id) return json({ ok: true });
+    const t = await env.DB.prepare("SELECT id FROM users WHERE id = ?1").bind(target).first();
+    if (!t) return bad("用户不存在", 404);
+    await env.DB.prepare("INSERT OR REPLACE INTO visits (owner, visitor, ts) VALUES (?1,?2,?3)").bind(target, me.id, now()).run();
+    return json({ ok: true });
+  }
+  if (path === "visits" && method === "GET"){
+    const r = await env.DB.prepare(`SELECT v.ts, u.* FROM visits v JOIN users u ON u.id = v.visitor
+      WHERE v.owner = ?1
+      AND v.visitor NOT IN (SELECT blocked FROM blocks WHERE user_id = ?1)
+      AND v.visitor NOT IN (SELECT user_id FROM blocks WHERE blocked = ?1)
+      ORDER BY v.ts DESC LIMIT 50`).bind(me.id).all();
+    return json({ ok: true, visits: r.results.map(u => ({ ...safeUser(u), visited_at: u.ts })) });
+  }
+
+  /* ---- 表白 / 情侣（云端，双方同意） ---- */
+  if (path === "propose" && method === "POST"){
+    const mid = String(body.match || "");
+    const m = await env.DB.prepare("SELECT * FROM matches WHERE id = ?1").bind(mid).first();
+    if (!m || (m.a !== me.id && m.b !== me.id)) return bad("匹配不存在", 404);
+    const otherId = m.a === me.id ? m.b : m.a;
+    const cp = await env.DB.prepare("SELECT partner FROM couples WHERE user_id = ?1 OR user_id = ?2").bind(me.id, otherId).first();
+    if (cp) return bad("有一方已在恋爱中", 409);
+    const pend = await env.DB.prepare("SELECT id FROM proposals WHERE status = 'pending' AND ((from_uid=?1 AND to_uid=?2) OR (from_uid=?2 AND to_uid=?1))").bind(me.id, otherId).first();
+    if (pend) return bad("已有待处理的表白", 409);
+    await env.DB.prepare("INSERT INTO proposals (id, from_uid, to_uid, ts, status) VALUES (?1,?2,?3,?4,'pending')").bind(uid(), me.id, otherId, now()).run();
+    return json({ ok: true });
+  }
+  if (path === "proposal" && method === "POST"){
+    const pr = await env.DB.prepare("SELECT * FROM proposals WHERE id = ?1").bind(String(body.id || "")).first();
+    if (!pr || pr.to_uid !== me.id || pr.status !== "pending") return bad("表白不存在或已处理", 404);
+    await env.DB.prepare("UPDATE proposals SET status = ?1 WHERE id = ?2").bind(body.accept ? "accepted" : "rejected", pr.id).run();
+    if (body.accept){
+      const since = now();
+      await env.DB.prepare("INSERT OR REPLACE INTO couples (user_id, partner, since) VALUES (?1,?2,?3)").bind(me.id, pr.from_uid, since).run();
+      await env.DB.prepare("INSERT OR REPLACE INTO couples (user_id, partner, since) VALUES (?1,?2,?3)").bind(pr.from_uid, me.id, since).run();
+      const m = await env.DB.prepare("SELECT * FROM matches WHERE (a=?1 AND b=?2) OR (a=?2 AND b=?1)").bind(me.id, pr.from_uid).first();
+      if (m) await env.DB.prepare("INSERT INTO messages (id, match_id, sender, text, img, recalled, ts) VALUES (?1,?2,?3,?4,'',0,?5)")
+        .bind(uid(), m.id, me.id, "💞 我们在一起啦！从今天起要好好相爱哦 🎉", since).run();
+    }
+    return json({ ok: true });
+  }
+  if (path === "breakup" && method === "POST"){
+    const mid = String(body.match || "");
+    const m = await env.DB.prepare("SELECT * FROM matches WHERE id = ?1").bind(mid).first();
+    if (!m || (m.a !== me.id && m.b !== me.id)) return bad("匹配不存在", 404);
+    const otherId = m.a === me.id ? m.b : m.a;
+    await env.DB.prepare("DELETE FROM couples WHERE (user_id=?1 AND partner=?2) OR (user_id=?2 AND partner=?1)").bind(me.id, otherId).run();
     return json({ ok: true });
   }
 
   return bad("接口不存在: " + path, 404);
 }
 
-/* 匹配详情负载（对方资料 + 我的置顶/已读 + 最近消息） */
+/* 匹配详情负载（对方资料 + 我的置顶/已读 + 最近消息 + 表白/情侣状态） */
 async function matchPayload(env, m, me){
   const otherId = m.a === me.id ? m.b : m.a;
   const mine = m.a === me.id;
   const other = await env.DB.prepare("SELECT * FROM users WHERE id = ?1").bind(otherId).first();
   const msgs = await env.DB.prepare("SELECT id, sender, text, img, recalled, ts FROM messages WHERE match_id = ?1 ORDER BY ts DESC LIMIT 200").bind(m.id).all();
   const read = mine ? m.read_a : m.read_b;
+  const prop = await env.DB.prepare("SELECT id, from_uid, ts FROM proposals WHERE status = 'pending' AND ((from_uid=?1 AND to_uid=?2) OR (from_uid=?2 AND to_uid=?1))").bind(me.id, otherId).first();
+  const cp = await env.DB.prepare("SELECT partner, since FROM couples WHERE user_id = ?1").bind(me.id).first();
   return {
     id: m.id, a: m.a, b: m.b, ts: m.ts,
     pinned: mine ? !!m.pinned_a : !!m.pinned_b,
     my_read: read,
     other: other ? safeUser(other) : null,
-    msgs: msgs.results.reverse()
+    msgs: msgs.results.reverse(),
+    proposal_in: prop && prop.from_uid === otherId ? { id: prop.id, ts: prop.ts } : null,
+    proposal_out: !!(prop && prop.from_uid === me.id),
+    couple: cp && cp.partner === otherId ? { partner: otherId, since: cp.since } : null
   };
 }
