@@ -172,6 +172,20 @@ input,select,textarea{font-family:inherit;font-size:15px}
 .done-wrap{margin-bottom:20px}
 .done-bar{height:10px;background:var(--surface-2);border-radius:99px;overflow:hidden;border:1px solid var(--line)}
 .done-bar i{display:block;height:100%;background:var(--grad);border-radius:99px;transition:width .4s}
+/* ===== v1.2 ===== */
+.chat-head .hbtns{margin-left:auto;display:flex;gap:6px}
+.chat-head .hbtns button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:15px;display:flex;align-items:center;justify-content:center}
+.chat-head .hbtns button:hover{border-color:var(--pri)}
+.couple-line{font-size:12px;color:var(--pri);font-weight:700;margin-top:2px}
+.match-item .pin-mark{font-size:14px;flex-shrink:0}
+.daily{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;margin-bottom:14px;box-shadow:var(--shadow);cursor:pointer;transition:.15s}
+.daily:hover{border-color:var(--pri)}
+.daily .da{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:23px;flex-shrink:0}
+.bubble img.msg-img{max-width:180px;max-height:180px;border-radius:10px;display:block;margin-bottom:4px;cursor:zoom-in}
+.couple-card{display:flex;align-items:center;gap:12px;background:var(--pri-soft);border:1.5px solid var(--pri);border-radius:var(--r);padding:14px 16px;margin-bottom:20px}
+.couple-card .cpa{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0}
+.block-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.block-row:last-child{border:none}
 
 /* Toast */
 #toasts{position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:99;display:flex;flex-direction:column;gap:10px;align-items:center;width:min(92vw,360px)}
@@ -211,6 +225,7 @@ try{var _t=localStorage.getItem("hv_theme");if(_t==="dark"||(!_t&&window.matchMe
 <body>
 <div id="app"></div>
 <div id="toasts"></div>
+<input type="file" id="img-file" accept="image/*" style="display:none" onchange="onImgPicked(this)">
 
 <script>
 "use strict";
@@ -288,7 +303,11 @@ function seedUsers(){
   DB.set("posts", posts);
 }
 const me = () => DB.get("session") ? DB.get("users", []).find(u => u.id === DB.get("session")) : null;
-const allPeople = () => [...DB.get("bots", []), ...DB.get("users", []).filter(u => !me() || u.id !== me().id)];
+const rawPeople = () => [...DB.get("bots", []), ...DB.get("users", [])];
+const isBlocked = id => { const m = me(); return !!m && (DB.get("blocks", {})[m.id] || []).includes(id); };
+const allPeople = () => rawPeople().filter(u => !me() || u.id !== me().id).filter(p => !isBlocked(p.id));
+const getCouple = () => { const m = me(); return m ? (DB.get("couples", {})[m.id] || null) : null; };
+const coupleDays = since => Math.max(1, Math.floor((Date.now() - since) / 86400e3) + 1);
 const getLikes = () => DB.get("likes", {});          // {myId: [targetId,...]}
 const getMatches = () => DB.get("matches", []);      // [{id, a, b, ts, msgs:[], lastRead:{}}]
 const getPosts = () => DB.get("posts", []);          // [{id, uid, text, ts, likes:[], comments:[]}]
@@ -351,7 +370,9 @@ function myMatches(){
   const m = me(); if (!m) return [];
   return getMatches().filter(x => x.a === m.id || x.b === m.id)
     .map(x => ({ ...x, other: allPeople().find(p => p.id === (x.a === m.id ? x.b : x.a)) }))
-    .filter(x => x.other);
+    .filter(x => x.other)
+    .sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
+      || ((b.msgs[b.msgs.length - 1]?.ts || b.ts) - (a.msgs[a.msgs.length - 1]?.ts || a.ts)));
 }
 function likedMe(){
   const m = me(); if (!m) return [];
@@ -482,10 +503,12 @@ const getSkips = () => DB.get("skips", {});          // {myId: [targetId,...]}
 function discoverQueue(){
   const m = me();
   const f = getFilter()[m.id];
+  const cp = getCouple();
   const likes = getLikes()[m.id] || [];
   const skips = getSkips()[m.id] || [];
   const matchedIds = myMatches().map(x => x.other.id);
   return allPeople().filter(p => {
+    if (cp && p.id === cp.uid) return false;
     if (likes.includes(p.id) || skips.includes(p.id) || matchedIds.includes(p.id)) return false;
     if (f.gender !== "all" && p.gender !== f.gender) return false;
     if (f.city !== "all" && p.city !== f.city) return false;
@@ -514,6 +537,23 @@ function clearFilter(){
   DB.set("filters", fs);
   toast("已清除筛选条件", "ok"); render();
 }
+function dailyPick(){
+  const m = me(); if (!m) return null;
+  const d = new Date(); const dstr = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate();
+  const st = DB.get("daily", {});
+  if (st[m.id] && st[m.id].date === dstr){
+    const p = allPeople().find(p => p.id === st[m.id].uid);
+    if (p) return p;
+  }
+  const myTags = new Set(m.tags || []);
+  let pick = null, best = -1;
+  discoverQueue().forEach(p => {
+    const score = (p.tags || []).filter(t => myTags.has(t)).length + Math.random() * 0.5;
+    if (score > best){ best = score; pick = p; }
+  });
+  if (pick){ st[m.id] = { date: dstr, uid: pick.id }; DB.set("daily", st); }
+  return pick;
+}
 function vDiscover(){
   let q = discoverQueue();
   const pin = DB.get("pin");
@@ -521,9 +561,19 @@ function vDiscover(){
   const f = getFilter()[me().id];
   if (!q.length) return `<section class="section"><div class="wrap"><div class="deck-empty"><div class="big">🌈</div><h3>今天的缘分刷完啦</h3><p style="margin-top:8px">明天再来，或去「匹配」看看已有的心动</p><div style="display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap"><button class="btn btn-pri" onclick="go('matches')">去看匹配 →</button>${(getSkips()[me().id]||[]).length?`<button class="btn btn-ghost" onclick="resetSkips()">找回略过的人</button>`:""}${filterActive()?`<button class="btn btn-ghost" onclick="clearFilter()">清除筛选条件</button>`:""}</div></div></div></section>`;
   const p = q[0];
+  const dp = dailyPick();
+  const dpIn = dp && q.some(x => x.id === dp.id);
+  const myTags = new Set(me().tags || []);
+  const dpCommon = dp ? (dp.tags || []).filter(t => myTags.has(t)).length : 0;
   return `
   <section class="section"><div class="wrap">
     <div class="sec-head"><div><h2>🔥 发现心动</h2><p>右滑或点 ❤️ 喜欢 · 左滑或点 ✖️ 略过</p></div><span style="font-size:13px;color:var(--muted)">还有 ${q.length} 位</span></div>
+    ${dpIn ? `<div class="daily" onclick="viewUser('${dp.id}')">
+      <div class="da" style="${photoStyle(dp)}">${dp.avatar}</div>
+      <div style="flex:1;min-width:0"><b>🌟 今日精选 · ${esc(dp.name)}</b>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:2px">${dpCommon ? "与你 " + dpCommon + " 个共同兴趣 · " : ""}📍 ${esc(dp.city)} · ${dp.age} 岁</div></div>
+      <span style="color:var(--pri);font-size:13px;font-weight:700">去看看 →</span>
+    </div>` : ""}
     <div class="filter-bar">
       <button class="fb ${f.gender==='all'?'on':''}" onclick="setFilter('gender','all')">全部</button>
       <button class="fb ${f.gender==='女'?'on':''}" onclick="setFilter('gender','女')">👧 女生</button>
@@ -627,7 +677,7 @@ function vMatches(){
       const last = x.msgs[x.msgs.length - 1];
       return `<div class="match-item" onclick="go('chat','${x.id}')">
         <div class="ma" style="${photoStyle(x.other)}">${x.other.avatar}</div>
-        <div class="mi"><h4>${esc(x.other.name)} · ${x.other.age}</h4><p>${last ? esc(last.text) : "配对成功，快打个招呼吧 👋"}</p></div>
+        <div class="mi"><h4>${x.pinned ? "📌 " : ""}${esc(x.other.name)} · ${x.other.age}</h4><p>${last ? esc(last.text) : "配对成功，快打个招呼吧 👋"}</p></div>
         ${unread ? '<div class="unread-dot"></div>' : `<div class="mt">${last ? fmtTime(last.ts) : ""}</div>`}
       </div>`; }).join("") + `</div>`
     : `<div class="empty">还没有匹配，去「发现」页右滑心动的人吧 💘<br><br><button class="btn btn-pri" onclick="go('discover')">去发现 →</button></div>`}
@@ -637,6 +687,7 @@ function vMatches(){
 /* ===== 页面：聊天 ===== */
 function vChat(matchId){
   const m = me();
+  const couple = getCouple();
   const x = myMatches().find(x => x.id === matchId);
   if (!x) return `<section class="section"><div class="wrap"><div class="empty">匹配不存在</div></div></section>`;
   x.lastRead[m.id] = Date.now();
@@ -647,19 +698,30 @@ function vChat(matchId){
     <div class="chat-box">
       <div class="chat-head">
         <div class="ca" style="${photoStyle(x.other)}">${x.other.avatar}</div>
-        <div><b>${esc(x.other.name)}</b><div style="font-size:12px;color:var(--muted)">${x.other.online ? "● 在线" : "离线"} · ${esc(x.other.city)}</div></div>
+        <div><b>${esc(x.other.name)}</b>
+          <div style="font-size:12px;color:var(--muted)">${x.other.online ? "● 在线" : "离线"} · ${esc(x.other.city)}</div>
+          ${couple && couple.uid === x.other.id ? `<div class="couple-line">💞 恋爱中 · 第 ${coupleDays(couple.since)} 天</div>` : ""}
+        </div>
+        <div class="hbtns">
+          <button title="${x.pinned ? "取消置顶" : "置顶聊天"}" onclick="togglePin('${x.id}')">📌</button>
+          ${!(couple && couple.uid === x.other.id) ? `<button title="表白" onclick="propose('${x.id}')">💗</button>` : ""}
+          <button title="举报并拉黑" onclick="blockUser('${x.id}')">⚠️</button>
+        </div>
       </div>
       <div class="chat-msgs" id="msgs">
         ${x.msgs.length ? x.msgs.map((g, i) => {
           const own = g.from === m.id;
           const canRecall = own && !g.recalled && Date.now() - g.ts < 5 * 60e3;
-          return `<div class="bubble ${own ? "me" : "them"}" ${canRecall ? `title="双击撤回" ondblclick="recallMsg('${x.id}',${i})"` : ""}>${g.recalled ? '<i style="opacity:.75;font-style:normal">消息已撤回</i>' : esc(g.text)}<span class="bt">${fmtTime(g.ts)}</span></div>`;
+          const body = g.recalled ? '<i style="opacity:.75;font-style:normal">消息已撤回</i>'
+            : (g.img ? `<img class="msg-img" src="${g.img}" alt="图片">` : "") + (g.text ? esc(g.text) : "");
+          return `<div class="bubble ${own ? "me" : "them"}" ${canRecall ? `title="双击撤回" ondblclick="recallMsg('${x.id}',${i})"` : ""}>${body}<span class="bt">${fmtTime(g.ts)}</span></div>`;
         }).join("")
           : `<div class="empty" style="padding:20px">配对成功 🎉<br>说点什么，开始你们的故事吧</div>`}
       </div>
       <div class="quick-row">${QUICKS.map(q => `<button onclick="quickSend('${x.id}',this)">${q}</button>`).join("")}</div>
       <div class="chat-input">
         <input id="chat-in" placeholder="发送消息…" onkeydown="if(event.key==='Enter')sendMsg('${x.id}')">
+        <button class="btn btn-ghost" style="padding:10px 13px" title="发送图片" onclick="$('#img-file').click()">📷</button>
         <button class="btn btn-pri" onclick="sendMsg('${x.id}')">发送</button>
       </div>
     </div>
@@ -671,27 +733,61 @@ function sendMsg(matchId){
   const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
   x.msgs.push({ from: m.id, text, ts: Date.now() });
   DB.set("matches", ms);
-  const otherId = x.a === m.id ? x.b : x.a;
-  const other = allPeople().find(p => p.id === otherId);
-  if (other && other.bot){
-    const delay = 1200 + Math.random() * 1800;
-    setTimeout(() => {
-      const box = $("#msgs");
-      if (box && route.page === "chat" && route.arg === matchId && !$("#typing")){
-        box.insertAdjacentHTML("beforeend", `<div class="bubble them" id="typing" style="opacity:.6">${other.name} 正在输入…</div>`);
-        box.scrollTop = box.scrollHeight;
-      }
-    }, Math.min(500, delay / 3));
-    setTimeout(() => {
-      const ms2 = getMatches(); const x2 = ms2.find(r => r.id === matchId); if (!x2) return;
-      x2.msgs.push({ from: otherId, text: REPLIES[Math.floor(Math.random() * REPLIES.length)], ts: Date.now() });
-      DB.set("matches", ms2);
-      if (route.page === "chat" && route.arg === matchId) render();
-      else toast(`💬 ${other.name} 回复了你`, "love");
-    }, delay);
-  }
+  scheduleBotReply(matchId);
   render();
   setTimeout(() => { const b = $("#msgs"); if (b) b.scrollTop = b.scrollHeight; }, 30);
+}
+function scheduleBotReply(matchId){
+  const m = me();
+  const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
+  const otherId = x.a === m.id ? x.b : x.a;
+  const other = allPeople().find(p => p.id === otherId);
+  if (!other || !other.bot) return;
+  const delay = 1200 + Math.random() * 1800;
+  setTimeout(() => {
+    const box = $("#msgs");
+    if (box && route.page === "chat" && route.arg === matchId && !$("#typing")){
+      box.insertAdjacentHTML("beforeend", `<div class="bubble them" id="typing" style="opacity:.6">${other.name} 正在输入…</div>`);
+      box.scrollTop = box.scrollHeight;
+    }
+  }, Math.min(500, delay / 3));
+  setTimeout(() => {
+    const ms2 = getMatches(); const x2 = ms2.find(r => r.id === matchId); if (!x2) return;
+    x2.msgs.push({ from: otherId, text: REPLIES[Math.floor(Math.random() * REPLIES.length)], ts: Date.now() });
+    DB.set("matches", ms2);
+    if (route.page === "chat" && route.arg === matchId) render();
+    else toast(`💬 ${other.name} 回复了你`, "love");
+  }, delay);
+}
+function onImgPicked(inp){
+  const file = inp.files && inp.files[0];
+  inp.value = "";
+  if (!file || route.page !== "chat") return;
+  if (file.size > 10 * 1024e3) return toast("图片不能超过 10MB", "bad");
+  const reader = new FileReader();
+  reader.onload = () => compressImg(reader.result, dataUrl => {
+    const mid = route.arg; const ms = getMatches(); const x = ms.find(r => r.id === mid); if (!x) return;
+    x.msgs.push({ from: me().id, img: dataUrl, ts: Date.now() });
+    const imgs = x.msgs.filter(g => g.img);
+    if (imgs.length > 20) imgs[0].img = "";
+    DB.set("matches", ms);
+    scheduleBotReply(mid);
+    render();
+    setTimeout(() => { const b = $("#msgs"); if (b) b.scrollTop = b.scrollHeight; }, 30);
+  });
+  reader.readAsDataURL(file);
+}
+function compressImg(src, cb){
+  const img = new Image();
+  img.onload = () => {
+    const max = 480; let w = img.width, h = img.height;
+    if (w > max || h > max){ const k = Math.min(max / w, max / h); w = Math.round(w * k); h = Math.round(h * k); }
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    c.getContext("2d").drawImage(img, 0, 0, w, h);
+    cb(c.toDataURL("image/jpeg", 0.55));
+  };
+  img.onerror = () => toast("图片读取失败", "bad");
+  img.src = src;
 }
 function quickSend(matchId, btn){
   const inp = $("#chat-in"); if (!inp) return;
@@ -706,6 +802,61 @@ function recallMsg(matchId, i){
   g.recalled = true;
   DB.set("matches", ms);
   toast("已撤回", "ok"); render();
+}
+function togglePin(matchId){
+  const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
+  x.pinned = !x.pinned;
+  DB.set("matches", ms);
+  toast(x.pinned ? "已置顶该聊天 📌" : "已取消置顶", "ok");
+  render();
+}
+function propose(matchId){
+  const m = me(); const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
+  const otherId = x.a === m.id ? x.b : x.a;
+  const other = allPeople().find(p => p.id === otherId); if (!other) return;
+  if (getCouple()) return toast("你已经在恋爱中啦 💞", "bad");
+  x.msgs.push({ from: m.id, text: `我想和你认真在一起，${other.gender === "男" ? "你愿意做我的男朋友" : "你愿意做我的女朋友"}吗？💗`, ts: Date.now() });
+  DB.set("matches", ms);
+  render();
+  setTimeout(() => {
+    const ms2 = getMatches(); const x2 = ms2.find(r => r.id === matchId); if (!x2) return;
+    if (Math.random() < (x2.msgs.length >= 8 ? 0.95 : 0.55)){
+      x2.msgs.push({ from: otherId, text: "我愿意！从今天起，我们就是情侣啦 💞🎉", ts: Date.now() });
+      DB.set("matches", ms2);
+      const cs = DB.get("couples", {});
+      cs[m.id] = { uid: otherId, since: Date.now() };
+      DB.set("couples", cs);
+      toast("🎉 恭喜脱单！祝你们幸福 💞", "love");
+    } else {
+      x2.msgs.push({ from: otherId, text: "谢谢你的心意…再给我们一点时间好不好，我还想更了解你一些 🙈", ts: Date.now() });
+      DB.set("matches", ms2);
+      toast("对方希望再相处看看，加油！", "");
+    }
+    if (route.page === "chat" && route.arg === matchId) render();
+  }, 1600 + Math.random() * 1500);
+}
+function blockUser(matchId){
+  const m = me(); const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
+  const otherId = x.a === m.id ? x.b : x.a;
+  const other = allPeople().find(p => p.id === otherId); if (!other) return;
+  if (!confirm(`举报并拉黑 ${other.name}？拉黑后 TA 将不再出现，该聊天也会隐藏。`)) return;
+  const bl = DB.get("blocks", {});
+  bl[m.id] = bl[m.id] || [];
+  if (!bl[m.id].includes(otherId)) bl[m.id].push(otherId);
+  DB.set("blocks", bl);
+  toast("已举报并拉黑 ✅", "ok");
+  go("matches");
+}
+function unblockUser(pid){
+  const m = me(); const bl = DB.get("blocks", {});
+  bl[m.id] = (bl[m.id] || []).filter(x => x !== pid);
+  DB.set("blocks", bl);
+  toast("已解除拉黑", "ok"); render();
+}
+function breakup(){
+  if (!confirm("确定结束这段关系吗？")) return;
+  const m = me(); const cs = DB.get("couples", {}); delete cs[m.id]; DB.set("couples", cs);
+  toast("已结束关系，愿各自安好 🍂", ""); render();
 }
 
 /* ===== 页面：动态广场 ===== */
@@ -832,11 +983,20 @@ function vProfile(){
   const stats = { likes: (getLikes()[m.id] || []).length, matches: myMatches().length, likedMe: likedMe().length, msgs: myMatches().reduce((n, x) => n + x.msgs.length, 0) };
   const done = completion(m);
   const doneTip = done >= 90 ? "资料超棒，继续保持 ✨" : done >= 60 ? "再补几条兴趣标签，心动率会更高 💪" : "资料太薄啦，快把介绍和兴趣标签填上 📝";
+  const couple = getCouple();
+  const cp = couple ? rawPeople().find(p => p.id === couple.uid) : null;
+  const blocked = DB.get("blocks", {})[m.id] || [];
   return `
   <section class="section"><div class="wrap" style="max-width:720px">
     <div class="sec-head"><div><h2>👤 我的资料</h2><p>完善资料可以显著提高匹配率</p></div>
       <button class="btn btn-ghost btn-sm" onclick="wipeData()">清空本地数据</button>
       <button class="btn btn-ghost btn-sm" onclick="logout()">退出登录</button></div>
+    ${cp ? `<div class="couple-card">
+      <div class="cpa" style="${photoStyle(cp)}">${cp.avatar}</div>
+      <div style="flex:1;min-width:0"><b>💞 恋爱中 · ${esc(cp.name)}</b>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:2px">已在一起 ${coupleDays(couple.since)} 天，遇见对的人要珍惜呀</div></div>
+      <button class="btn btn-ghost btn-sm" onclick="breakup()">分手</button>
+    </div>` : ""}
     <div class="card done-wrap">
       <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:8px"><b>资料完善度</b><span style="color:var(--pri);font-weight:700">${done}%</span></div>
       <div class="done-bar"><i style="width:${done}%"></i></div>
@@ -848,6 +1008,10 @@ function vProfile(){
       <div class="stat"><b>${stats.likedMe}</b><span>😍 喜欢我</span></div>
       <div class="stat"><b>${stats.msgs}</b><span>💬 消息</span></div>
     </div>
+    ${blocked.length ? `<div class="card" style="margin-bottom:20px">
+      <div class="f-row" style="margin-bottom:6px"><label>黑名单（${blocked.length}）</label></div>
+      ${blocked.map(pid => { const p = rawPeople().find(x => x.id === pid); return p ? `<div class="block-row"><span>${p.avatar} ${esc(p.name)}</span><button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="unblockUser('${p.id}')">解除拉黑</button></div>` : ""; }).join("")}
+    </div>` : ""}
     <div class="card">
       <div class="f-row"><label>我的形象</label>
         <div class="emoji-pick" id="p-avatar">${AVATARS.map(a => `<button class="${m.avatar===a?"on":""}" onclick="pickAvatar('${a}')">${a}</button>`).join("")}</div>

@@ -117,6 +117,54 @@ class CDP {
     ok(await cdp.eval(`document.body.innerHTML.includes("资料完善度")`), "完善度进度条渲染");
     ok(await cdp.eval(`completion(me()) >= 70`), "完善度计算合理");
 
+    console.log("== v1.2 每日精选 ==");
+    await cdp.eval(`go("discover")`);
+    ok(await cdp.eval(`!!document.querySelector(".daily")`), "今日精选横幅出现");
+    ok(await cdp.eval(`dailyPick().id === dailyPick().id`), "当日精选稳定不漂移");
+
+    console.log("== v1.2 置顶 / 情侣 ==");
+    await cdp.eval(`go("chat", getMatches()[0].id)`);
+    ok(await cdp.eval(`!!document.querySelector(".hbtns")`), "聊天头操作按钮出现");
+    await cdp.eval(`togglePin(getMatches()[0].id)`);
+    ok(await cdp.eval(`getMatches()[0].pinned === true`), "置顶标记写入");
+    ok(await cdp.eval(`myMatches()[0].pinned === true`), "置顶聊天排第一");
+    await cdp.eval(`new Promise(res => {
+      const ms = getMatches();
+      while (ms[0].msgs.length < 8) ms[0].msgs.push({ from:"u1", text:"多聊聊", ts:Date.now() });
+      DB.set("matches", ms);
+      const _r = Math.random; Math.random = () => 0.01;
+      propose(ms[0].id);
+      setTimeout(() => { Math.random = _r; res(true); }, 3800);
+    })`);
+    ok(await cdp.eval(`(DB.get("couples", {})["u1"] || {}).uid === "bot0" && getMatches()[0].msgs.some(m => m.text.includes("我愿意"))`), "表白成功建立情侣关系");
+    ok(await cdp.eval(`go("chat", getMatches()[0].id); !!document.querySelector(".couple-line")`), "聊天页显示恋爱状态");
+    ok(await cdp.eval(`go("discover"); discoverQueue().every(p => p.id !== (DB.get("couples", {})["u1"] || {}).uid)`), "情侣对象不再出现在发现页");
+    ok(await cdp.eval(`go("profile"); document.body.innerHTML.includes("已在一起")`), "资料页情侣卡片显示");
+
+    console.log("== v1.2 图片消息 ==");
+    await cdp.eval(`go("chat", getMatches()[0].id)`);
+    ok(await cdp.eval(`!!$("#img-file")`), "隐藏图片输入存在");
+    await cdp.eval(`{
+      const ms = getMatches();
+      ms[0].msgs.push({ from:"u1", img:"data:image/gif;base64,R0lGODlhAQABAAAAACw=", ts:Date.now() });
+      DB.set("matches", ms); render();
+    }`);
+    ok(await cdp.eval(`!!document.querySelector(".bubble img.msg-img")`), "图片气泡渲染");
+    ok(await cdp.eval(`document.body.innerHTML.includes("📷")`), "📷 发图按钮存在");
+
+    console.log("== v1.2 举报拉黑 ==");
+    await cdp.eval(`
+      createMatch("u1", "bot2");
+      window.confirm = () => true;
+      blockUser(getMatches().find(x => x.a === "u1" && x.b === "bot2").id);
+    `);
+    ok(await cdp.eval(`(DB.get("blocks", {})["u1"] || []).includes("bot2")`), "拉黑写入");
+    ok(await cdp.eval(`!myMatches().some(x => x.other.id === "bot2")`), "拉黑后聊天隐藏");
+    ok(await cdp.eval(`!discoverQueue().some(p => p.id === "bot2")`), "拉黑后不再出现");
+    ok(await cdp.eval(`go("profile"); document.body.innerHTML.includes("黑名单")`), "黑名单卡片显示");
+    await cdp.eval(`unblockUser("bot2")`);
+    ok(await cdp.eval(`!(DB.get("blocks", {})["u1"] || []).includes("bot2")`), "解除拉黑");
+
     console.log(`\n结果：${pass} 通过，${fail} 失败`);
     process.exitCode = fail ? 1 : 0;
   } catch (e){
