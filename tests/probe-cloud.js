@@ -132,6 +132,16 @@ async function browserEval(b, expr){ return b.cdp.eval(expr); }
   ok(await browserEval(B, `(DB.get("cloud_visits_sig", "") || "").length > 0`), "B 的云端访客记录含 A");
   ok(await browserEval(B, `getRUsers().filter(u => u.last_seen && Date.now() - u.last_seen < 120e3).length >= 1`), "真实在线状态生效");
 
+  console.log("== v2.2 通知中心 / 真实头像 ==");
+  await browserEval(A, `Cloud.req("/avatar", { method: "PUT", body: JSON.stringify({ img: "data:image/gif;base64,R0lGODlhAQABAAAAACw=" }) })`);
+  await sleep(300);
+  await browserEval(B, `go("discover"); syncUsers()`); await sleep(600);
+  ok(await browserEval(B, `(getRUsers().find(u => u.name === "艾丽").avatar_url || "").length > 0`), "B 看到 A 的真实头像");
+  ok(await browserEval(A, `document.body.innerHTML.includes("🔔")`), "通知铃铛渲染");
+  await browserEval(A, `toggleNotif()`);
+  ok(await browserEval(A, `!!document.querySelector("#notif-panel")`), "通知面板打开");
+  ok(await browserEval(A, `toggleNotif(); typeof notifCounts().total === "number"`), "通知计数可用");
+
   console.log("== 撤回 / 未读 / 拉黑 ==");
   await browserEval(A, `const x = getMatches().find(x => x.real); const i = x.msgs.findIndex(g => g.from === me().id && g.text.includes("云端聊天")); recallMsg(x.id, i)`);
   await sleep(400);

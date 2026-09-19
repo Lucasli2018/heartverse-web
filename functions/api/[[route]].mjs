@@ -15,7 +15,7 @@ export async function onRequest(context){
   if (path === "ping") return json({ ok: true, ts: now() });
 
   let body = {};
-  if (method === "POST" || method === "PATCH"){
+  if (method === "POST" || method === "PATCH" || method === "PUT"){
     try { body = await request.json(); } catch (e){ return bad("请求体必须是 JSON"); }
   }
 
@@ -124,13 +124,21 @@ export async function onRequest(context){
     return json({ ok: true, matches: out });
   }
 
-  /* ---- 消息：全量拉最近 200 条（撤回状态随取随新） ---- */
+  /* ---- 消息：分页（before 为游标取更早，默认最新 200 条） ---- */
   if (path === "messages" && method === "GET"){
     const mid = url.searchParams.get("match") || "";
     const m = await env.DB.prepare("SELECT * FROM matches WHERE id = ?1").bind(mid).first();
     if (!m || (m.a !== me.id && m.b !== me.id)) return bad("匹配不存在", 404);
-    const r = await env.DB.prepare("SELECT id, sender, text, img, recalled, ts FROM messages WHERE match_id = ?1 ORDER BY ts ASC LIMIT 200").bind(mid).all();
-    return json({ ok: true, msgs: r.results });
+    const before = parseInt(url.searchParams.get("before"), 10) || 0;
+    let r;
+    if (before > 0){
+      r = await env.DB.prepare("SELECT id, sender, text, img, recalled, ts FROM messages WHERE match_id = ?1 AND ts < ?2 ORDER BY ts DESC LIMIT 50").bind(mid, before).all();
+      r.results.reverse();
+    } else {
+      r = await env.DB.prepare("SELECT id, sender, text, img, recalled, ts FROM messages WHERE match_id = ?1 ORDER BY ts DESC LIMIT 200").bind(mid).all();
+      r.results.reverse();
+    }
+    return json({ ok: true, msgs: r.results, has_more: r.results.length === (before > 0 ? 50 : 200) });
   }
 
   /* ---- 发消息 ---- */
@@ -195,6 +203,15 @@ export async function onRequest(context){
     await env.DB.prepare("UPDATE proposals SET status = 'rejected' WHERE status = 'pending' AND ((from_uid=?1 AND to_uid=?2) OR (from_uid=?2 AND to_uid=?1))").bind(me.id, target).run();
     await env.DB.prepare("DELETE FROM couples WHERE (user_id=?1 AND partner=?2) OR (user_id=?2 AND partner=?1)").bind(me.id, target).run();
     return json({ ok: true });
+  }
+
+  /* ---- 头像上传（压缩 dataURL，≤40KB 字符） ---- */
+  if (path === "avatar" && (method === "PUT" || method === "POST")){
+    const img = String(body.img || "");
+    if (!img.startsWith("data:image/")) return bad("图片格式不支持");
+    if (img.length > 40000) return bad("头像图片过大，请重新选择");
+    await env.DB.prepare("UPDATE users SET avatar_url = ?1 WHERE id = ?2").bind(img, me.id).run();
+    return json({ ok: true, avatar_url: img });
   }
 
   /* ---- 动态广场（云端） ---- */
@@ -316,6 +333,7 @@ async function matchPayload(env, m, me){
     my_read: read,
     other: other ? safeUser(other) : null,
     msgs: msgs.results.reverse(),
+    has_more: msgs.results.length === 200,
     proposal_in: prop && prop.from_uid === otherId ? { id: prop.id, ts: prop.ts } : null,
     proposal_out: !!(prop && prop.from_uid === me.id),
     couple: cp && cp.partner === otherId ? { partner: otherId, since: cp.since } : null

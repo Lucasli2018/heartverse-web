@@ -7,8 +7,10 @@
 ### 云端（v2.0 · 需部署后端）
 - ☁️ 邮箱注册 / 登录（SHA-256 口令哈希 + token 会话，跨浏览器同步）
 - 🔥 发现页含**真实用户**（排除自己/互相拉黑者），🟢 真实在线状态（2 分钟活跃）
+- 🔔 通知中心（未读消息 / 待处理表白 / 喜欢你的人 / 今日访客，一键直达）
+- 🖼️ 真实头像上传（本地压缩 160px/JPEG 存 D1，全站渲染；本地模式同样可用）
 - 💞 双向喜欢 → 服务端建立匹配，跨设备生效
-- 💬 真实用户聊天：3 秒轮询收信、发送中/失败状态、5 分钟内撤回跨端同步、已读上报、未读角标
+- 💬 真实用户聊天：3 秒轮询收信、发送中/失败状态、5 分钟内撤回跨端同步、已读上报、未读角标、历史消息分页加载
 - 💗 云端情侣：表白需对方同意（聊天页横幅），恋爱天数双方生效，可云端分手
 - ✨ 动态广场云端同步：真实用户发帖/点赞/评论进 D1，与机器人动态混排
 - 👀 访客记录云端同步
@@ -43,8 +45,8 @@ node tests/server.mjs 8787   # 本机模拟 Pages Functions + 内存 D1
 ## 测试
 
 ```bash
-D:/tools/node/node.exe tests/api.test.js      # API 单测（node:sqlite 仿真 D1，54 断言）
-D:/tools/node/node.exe tests/probe-cloud.js   # 云端 E2E（双浏览器跨用户，30 断言）
+D:/tools/node/node.exe tests/api.test.js      # API 单测（node:sqlite 仿真 D1，62 断言）
+D:/tools/node/node.exe tests/probe-cloud.js   # 云端 E2E（双浏览器跨用户，34 断言）
 node tests/probe.js                           # 本地模式 UI 探针（无头 Chrome，40 断言）
 ```
 

@@ -137,6 +137,21 @@ const U = (email, name, gender) => ({ email, pw: "secret66", name, gender, age: 
   const bk = await call("POST", "breakup", { token: ta, body: { match: mid } });
   ok(bk.data.ok === true && !(await call("GET", "matches", { token: tb })).data.matches.find(m => m.id === mid).couple, "分手后情侣解除");
 
+  console.log("== v2.2 头像 / 分页 / 通知源 ==");
+  const tinyImg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAj/wAARCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AVN//2Q==";
+  ok((await call("PUT", "avatar", { token: ta, body: { img: "http://x/a.jpg" } })).status === 400, "非 dataURL 头像拒绝");
+  ok((await call("PUT", "avatar", { token: ta, body: { img: tinyImg } })).data.ok === true, "头像上传");
+  ok((await call("GET", "users", { token: tb })).data.users.find(u => u.cid === ra.data.user.cid).avatar_url === tinyImg, "对方看到新头像");
+  ok((await call("GET", "me", { token: ta })).data.user.avatar_url === tinyImg, "me 返回头像");
+  for (let i = 0; i < 6; i++) await call("POST", "send", { token: ta, body: { match: mid, text: "历史消息" + i } });
+  const page1 = await call("GET", "messages?match=" + mid, { token: ta });
+  ok(page1.data.msgs.length >= 8 && page1.data.has_more === false, "默认最新一页 + has_more");
+  const older = await call("GET", "messages?match=" + mid + "&before=" + page1.data.msgs.at(-1).ts, { token: ta });
+  ok(older.data.msgs.length >= 6 && older.data.msgs.every(g => g.ts < page1.data.msgs.at(-1).ts), "before 游标取更早消息");
+  ok(older.data.has_more === false, "不足一页 has_more=false");
+  const mA3 = (await call("GET", "matches", { token: ta })).data.matches.find(m => m.id === mid);
+  ok(typeof mA3.has_more === "boolean", "matches 负载含 has_more");
+
   console.log(`\n结果：${pass} 通过，${fail} 失败`);
   process.exitCode = fail ? 1 : 0;
 })().catch(e => { console.error("测试异常:", e.message); process.exit(1); });

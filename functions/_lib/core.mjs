@@ -24,6 +24,6 @@ export async function authUser(request, env){
 export function safeUser(u){
   let tags = [];
   try { tags = JSON.parse(u.tags || "[]"); } catch (e){}
-  return { cid: u.id, email: u.email, name: u.name, gender: u.gender, age: u.age, city: u.city, bio: u.bio, avatar: u.avatar, tags, last_seen: u.last_seen };
+  return { cid: u.id, email: u.email, name: u.name, gender: u.gender, age: u.age, city: u.city, bio: u.bio, avatar: u.avatar, avatar_url: u.avatar_url || "", tags, last_seen: u.last_seen };
 }
 export function bad(error, status = 400){ return json({ ok: false, error }, status); }

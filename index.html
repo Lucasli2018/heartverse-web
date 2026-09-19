@@ -187,6 +187,12 @@ input,select,textarea{font-family:inherit;font-size:15px}
 .block-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);font-size:14px}
 .block-row:last-child{border:none}
 .prop-banner{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--pri-soft);border:1.5px solid var(--pri);border-radius:12px;padding:10px 14px;margin:12px;font-size:14px}
+.nav-user{position:relative}
+.notif-panel{position:absolute;right:0;top:48px;background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:10px;min-width:230px;z-index:90}
+.notif-panel .ni{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;font-size:13.5px;cursor:pointer}
+.notif-panel .ni:hover{background:var(--pri-soft)}
+.notif-panel .ni b{flex:1}
+.notif-panel .nt{font-size:12px;color:var(--muted);padding:2px 10px 6px;font-weight:700}
 #imgview{position:fixed;inset:0;background:rgba(20,8,14,.88);display:none;align-items:center;justify-content:center;z-index:200;cursor:zoom-out}
 #imgview img{max-width:92vw;max-height:92vh;border-radius:12px}
 
@@ -229,6 +235,7 @@ try{var _t=localStorage.getItem("hv_theme");if(_t==="dark"||(!_t&&window.matchMe
 <div id="app"></div>
 <div id="toasts"></div>
 <input type="file" id="img-file" accept="image/*" style="display:none" onchange="onImgPicked(this)">
+<input type="file" id="av-file" accept="image/*" style="display:none" onchange="onAvatarPicked(this)">
 
 <script>
 "use strict";
@@ -343,7 +350,7 @@ const Cloud = {
       const users = DB.get("users", []);
       const mine = users.find(u => u.cid === j.user.cid);
       const rec = mine || { id: "c" + j.user.cid, cloud: true, ts: Date.now(), bg: PHOTO_BG[Math.floor(Math.random() * PHOTO_BG.length)] };
-      Object.assign(rec, { cid: j.user.cid, email: j.user.email, name: j.user.name, gender: j.user.gender, age: j.user.age, city: j.user.city, bio: j.user.bio, avatar: j.user.avatar, tags: j.user.tags });
+      Object.assign(rec, { cid: j.user.cid, email: j.user.email, name: j.user.name, gender: j.user.gender, age: j.user.age, city: j.user.city, bio: j.user.bio, avatar: j.user.avatar, avatar_url: j.user.avatar_url || "", tags: j.user.tags });
       if (!mine) users.push(rec);
       DB.set("users", users);
     }
@@ -359,7 +366,7 @@ function upsertRealUser(u, isMe){
   const list = getRUsers();
   let rec = list.find(x => x.cid === u.cid);
   if (!rec){ rec = { id: "c" + u.cid, cid: u.cid, cloud: true, bg: PHOTO_BG[list.length % PHOTO_BG.length], ts: Date.now() }; list.push(rec); }
-  Object.assign(rec, { name: u.name, gender: u.gender, age: u.age, city: u.city, bio: u.bio, avatar: u.avatar, tags: u.tags || [],
+  Object.assign(rec, { name: u.name, gender: u.gender, age: u.age, city: u.city, bio: u.bio, avatar: u.avatar, avatar_url: u.avatar_url || rec.avatar_url || "", tags: u.tags || [],
     last_seen: u.last_seen || rec.last_seen || 0,
     online: u.last_seen ? (Date.now() - u.last_seen < 120e3) : (rec.online || false) });
   if (!isMe) DB.set("rusers", list);
@@ -439,10 +446,13 @@ function applyRealMatch(local, s, m, other){
   local.lastRead = { [m.id]: s.my_read || 0 };
   local.proposal_in = s.proposal_in || null;
   local.proposal_out = !!s.proposal_out;
-  local.msgs = (s.msgs || []).map(g => ({
+  local.hasMore = s.has_more !== false;
+  const srvIds = new Set((s.msgs || []).map(g => g.id));
+  const extras = (local.msgs || []).filter(g => g.sid && !srvIds.has(g.sid) && (!s.msgs || !s.msgs.length || g.ts < s.msgs[0].ts));
+  local.msgs = extras.concat((s.msgs || []).map(g => ({
     sid: g.id, from: g.sender === m.cid ? m.id : other.id,
     text: g.text || "", img: g.img || "", recalled: !!g.recalled, ts: g.ts
-  }));
+  })));
   const cs = DB.get("couples", {});
   if (s.couple && (!cs[m.id] || cs[m.id].uid !== other.id || cs[m.id].since !== s.couple.since)){
     cs[m.id] = { uid: other.id, since: s.couple.since };
@@ -541,10 +551,10 @@ function likedMe(){
 
 /* ---------- 路由 ---------- */
 let route = { page: "home", arg: null };
-function go(page, arg){ route = { page, arg: arg || null }; render(); window.scrollTo(0, 0); }
+function go(page, arg){ notifOpen = false; route = { page, arg: arg || null }; render(); window.scrollTo(0, 0); }
 
 /* ---------- 渲染 ---------- */
-function photoStyle(p){ return `background:${p.bg || PHOTO_BG[0]}`; }
+function photoStyle(p){ return p && p.avatar_url ? `background:#e8e0e4 url('${p.avatar_url}') center/cover` : `background:${p.bg || PHOTO_BG[0]}`; }
 
 function render(){
   const m = me();
@@ -565,6 +575,7 @@ function render(){
       `}
     </div>
     <div class="nav-user">
+      ${m ? notifHtml() : ""}
       <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" title="切换主题">${document.documentElement.dataset.theme==="dark"?"☀️":"🌙"}</button>
       ${m ? `${Cloud.on() ? '<span title="云端模式 · 数据已同步" style="font-size:12px">☁️</span>' : ""}<div class="avatar" onclick="go('profile')">${m.avatar || "😊"}</div>`
           : `<button class="btn btn-pri btn-sm" onclick="go('auth')">登录 / 注册</button>`}
@@ -898,6 +909,7 @@ function vChat(matchId){
         <button class="btn btn-pri btn-sm" onclick="acceptProposal('${x.id}','${x.proposal_in.id}',true)">接受 💞</button>
         <button class="btn btn-ghost btn-sm" onclick="acceptProposal('${x.id}','${x.proposal_in.id}',false)">婉拒</button></div>` : ""}
       <div class="chat-msgs" id="msgs">
+        ${x.real && x.msgs.length >= 50 && x.hasMore !== false ? `<div style="text-align:center;padding:4px 0 10px"><button class="btn btn-ghost btn-sm" onclick="loadOlder('${x.id}')">⬆ 加载更早的消息</button></div>` : ""}
         ${x.msgs.length ? x.msgs.map((g, i) => {
           const own = g.from === m.id;
           const canRecall = own && !g.recalled && Date.now() - g.ts < 5 * 60e3;
@@ -992,14 +1004,14 @@ function onImgPicked(inp){
   });
   reader.readAsDataURL(file);
 }
-function compressImg(src, cb){
+function compressImg(src, cb, max = 480, q = 0.55){
   const img = new Image();
   img.onload = () => {
-    const max = 480; let w = img.width, h = img.height;
+    let w = img.width, h = img.height;
     if (w > max || h > max){ const k = Math.min(max / w, max / h); w = Math.round(w * k); h = Math.round(h * k); }
     const c = document.createElement("canvas"); c.width = w; c.height = h;
     c.getContext("2d").drawImage(img, 0, 0, w, h);
-    cb(c.toDataURL("image/jpeg", 0.55));
+    cb(c.toDataURL("image/jpeg", q));
   };
   img.onerror = () => toast("图片读取失败", "bad");
   img.src = src;
@@ -1071,6 +1083,22 @@ function acceptProposal(matchId, pid, accept){
       syncMatches().then(ch => { if (ch) render(); });
     })
     .catch(e => toast(e.message || "操作失败", "bad"));
+}
+function loadOlder(matchId){
+  const m = me(); const x = getMatches().find(r => r.id === matchId);
+  if (!x || !x.real || !x.msgs.length || !Cloud.on()) return;
+  Cloud.req("/messages?match=" + x.id + "&before=" + x.msgs[0].ts)
+    .then(j => {
+      const other = allPeople().find(p => p.id === (x.a === m.id ? x.b : x.a));
+      const older = (j.msgs || []).map(g => ({ sid: g.id, from: g.sender === m.cid ? m.id : other.id, text: g.text || "", img: g.img || "", recalled: !!g.recalled, ts: g.ts }));
+      const have = new Set(x.msgs.map(g => g.sid));
+      x.msgs = older.filter(g => !have.has(g.sid)).concat(x.msgs);
+      x.hasMore = !!j.has_more;
+      DB.set("matches", getMatches());
+      render();
+      const b = $("#msgs"); if (b) b.scrollTop = 40;
+    })
+    .catch(e => toast(e.message || "加载失败", "bad"));
 }
 function blockUser(matchId){
   const m = me(); const ms = getMatches(); const x = ms.find(r => r.id === matchId); if (!x) return;
@@ -1347,6 +1375,12 @@ function vProfile(){
     <div class="card">
       <div class="f-row"><label>我的形象</label>
         <div class="emoji-pick" id="p-avatar">${AVATARS.map(a => `<button class="${m.avatar===a?"on":""}" onclick="pickAvatar('${a}')">${a}</button>`).join("")}</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <div class="avatar" style="width:44px;height:44px;${m.avatar_url ? `background:#e8e0e4 url('${m.avatar_url}') center/cover` : ""}">${m.avatar_url ? "" : (m.avatar || "😊")}</div>
+          <button class="btn btn-ghost btn-sm" onclick="$('#av-file').click()">🖼 上传真实头像</button>
+          ${m.avatar_url ? `<button class="btn btn-ghost btn-sm" onclick="removeAvatar()">移除</button>` : ""}
+          <span style="font-size:12px;color:var(--muted)">${m.avatar_url ? "已使用真实头像" : "本地压缩后仅 5KB 左右"}</span>
+        </div>
       </div>
       <div class="f-grid">
         <div class="f-row"><label>昵称</label><input class="f-in" id="p-name" value="${esc(m.name)}"></div>
@@ -1386,6 +1420,39 @@ function saveProfile(){
   toast("资料已保存 ✅", "ok"); pickedAvatar = null; render();
 }
 function logout(){ Cloud.logout(); DB.set("session", null); toast("已退出登录", ""); go("home"); }
+function onAvatarPicked(inp){
+  const file = inp.files && inp.files[0];
+  inp.value = "";
+  if (!file) return;
+  if (file.size > 8 * 1024e3) return toast("图片不能超过 8MB", "bad");
+  const reader = new FileReader();
+  reader.onload = () => compressImg(reader.result, dataUrl => {
+    const m = me(); if (!m) return;
+    const apply = () => {
+      const users = DB.get("users", []); const u = users.find(x => x.id === m.id);
+      if (u){ u.avatar_url = dataUrl; DB.set("users", users); }
+      if (Cloud.user){ Cloud.user.avatar_url = dataUrl; DB.set("cloud_user", Cloud.user); }
+      toast("头像已更新 🖼", "ok"); render();
+    };
+    if (Cloud.on()){
+      Cloud.req("/avatar", { method: "PUT", body: JSON.stringify({ img: dataUrl }) })
+        .then(apply)
+        .catch(e => { apply(); toast("云端同步失败，仅本地生效", "bad"); });
+    } else apply();
+  }, 160, 0.6);
+  reader.readAsDataURL(file);
+}
+function removeAvatar(){
+  const m = me(); if (!m) return;
+  const done = () => {
+    const users = DB.get("users", []); const u = users.find(x => x.id === m.id);
+    if (u){ u.avatar_url = ""; DB.set("users", users); }
+    if (Cloud.user){ Cloud.user.avatar_url = ""; DB.set("cloud_user", Cloud.user); }
+    render();
+  };
+  if (Cloud.on()) Cloud.req("/avatar", { method: "PUT", body: JSON.stringify({ img: "" }) }).catch(() => {});
+  done();
+}
 function wipeData(){
   if (!confirm("确定清空本地全部数据？账号、匹配、聊天记录都将删除且无法恢复。")) return;
   const keep = localStorage.getItem("hv_theme");
@@ -1394,6 +1461,46 @@ function wipeData(){
   route.page = "home";
   seedUsers(); render();
   toast("本地数据已清空", "ok");
+}
+
+/* ---------- 通知中心 ---------- */
+let notifOpen = false;
+function notifCounts(){
+  const m = me(); if (!m) return null;
+  const unreadMsgs = myMatches().reduce((n, x) => n + (x.msgs.some(g => g.from !== m.id && g.ts > (x.lastRead[m.id] || 0)) ? 1 : 0), 0);
+  const localLiked = likedMe().filter(p => !(getLikes()[m.id] || []).includes(p.id)).length;
+  const cloudLiked = String(DB.get("cloud_likedme", "") || "").split(",").filter(Boolean).length;
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const visitsToday = (getVisits()[m.id] || []).filter(v => v.ts >= todayStart.getTime()).length
+    + String(DB.get("cloud_visits_sig", "") || "").split(",").filter(Boolean)
+      .filter(cid => (DB.get("cloud_visits_ts", {})[cid] || 0) >= todayStart.getTime()).length;
+  const proposals = myMatches().filter(x => x.real && x.proposal_in).length;
+  const total = unreadMsgs + localLiked + cloudLiked + visitsToday + proposals;
+  return { unreadMsgs, localLiked, cloudLiked, visitsToday, proposals, total };
+}
+function notifHtml(){
+  const c = notifCounts();
+  if (!c) return "";
+  const items = [];
+  if (c.unreadMsgs) items.push(["💬", "未读消息", c.unreadMsgs, "matches"]);
+  if (c.proposals) items.push(["💗", "待处理的表白", c.proposals, "proposal"]);
+  if (c.localLiked + c.cloudLiked) items.push(["❤️", "喜欢你的人", c.localLiked + c.cloudLiked, "likedme"]);
+  if (c.visitsToday) items.push(["👀", "今日访客", c.visitsToday, "visits"]);
+  return `<button class="btn btn-ghost btn-sm" onclick="toggleNotif()" title="通知" style="position:relative">🔔${c.total ? `<span class="bdg" style="position:absolute;top:-4px;right:-4px">${c.total}</span>` : ""}</button>
+  ${notifOpen ? `<div class="notif-panel" id="notif-panel">
+    <div class="nt">通知中心</div>
+    ${items.length ? items.map(([ic, label, n, act]) => `<div class="ni" onclick="notifGo('${act}')"><span>${ic}</span><b>${label}</b><span class="bdg">${n}</span></div>`).join("")
+      : `<div class="ni" style="cursor:default;color:var(--muted)">暂无新通知 🌙</div>`}
+  </div>` : ""}`;
+}
+function toggleNotif(){ notifOpen = !notifOpen; render(); }
+function notifGo(act){
+  notifOpen = false;
+  if (act === "matches") return go("matches");
+  if (act === "likedme") return go("likedme", "likes");
+  if (act === "visits") return go("likedme", "visits");
+  if (act === "proposal"){ const x = myMatches().find(x => x.real && x.proposal_in); if (x) return go("chat", x.id); }
+  render();
 }
 
 /* ---------- 主题 ---------- */
